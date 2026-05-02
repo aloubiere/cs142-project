@@ -22,5 +22,62 @@ dependencies = [
     "pytest-mypy>=0.10.3",
     "pytest-timeout>=2.2.0",
     "rich>=14.3.3",
+    "ruff>=0.6.4",
     "types-colorama>=0.4.15.12",
 ]
+
+[tool.ruff]
+lint.select = [
+  "E", # pycodestyle errors - handles basic Python style
+  "W", # pycodestyle warnings - handles whitespace issues
+  "F", # pyflakes - handles unused imports and variables
+  "N", # pep8-naming - handles naming conventions
+]
+extend-exclude = [
+    "tests/test_fake.py",
+    "src/base.py",
+    "src/stubs.py"
+    ]
+
+[tool.pylint.basic]
+variable-rgx = "[a-zA-Z_][a-z0-9_]{0,30}$"
+argument-rgx = "[a-zA-Z_][a-z0-9_]{0,30}$"
+function-rgx = "(([a-z][a-z0-9_]{2,50})|(_[a-z0-9_]*))$"
+max-line-length = 80
+max-nested-blocks = 6
+max-attributes = 12
+
+[tool.pylint.message_control]
+disable = ["W0611", "R0903", "R1705", "W0622"]
+
+[tool.pylint.master]
+extension-pkg-allow-list = "pygame"
+source-roots = "src"
+ignore = [
+    "test_fake.py",
+    "base.py",
+    "stubs.py",
+    ".mypy_cache",
+    ".venv",
+    "assets",
+    "boards",
+    ".vscode/"
+    ]
+
+[tool.mypy]
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+files = "."
+exclude = [
+    "tests/test_fake.py",
+    "src/base.py",
+    "src/stubs.py"
+    ]
+
+[tool.pytest]
+pythonpath = ["src"]
+addopts = [
+    "--mypy",
+    "--ignore=src/base.py",
+    "--ignore=src/stubs.py"
+    ]

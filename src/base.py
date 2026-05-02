@@ -21,15 +21,16 @@ Row: TypeAlias = int
 Col: TypeAlias = int
 
 
-######################################################################
+###########################################################
 
 
 class Step(Enum):
     """
     An enumeration of the eight neighboring directions.
 
-    There are four cardinal directions (N, S, E, W), and four
-    intercardinal (a.k.a. ordinal) directions (NW, NE, SW, SE).
+    There are four cardinal directions (N, S, E, W), and
+    four intercardinal (a.k.a. ordinal) directions (NW, NE,
+    SW, SE).
     """
 
     W = "w"
@@ -42,7 +43,7 @@ class Step(Enum):
     SW = "sw"
 
 
-######################################################################
+###########################################################
 
 
 class PosBase(ABC):
@@ -74,8 +75,9 @@ class PosBase(ABC):
     @abstractmethod
     def step_to(self, other: "PosBase") -> Step:
         """
-        Compute the difference in two positions, represented
-        as a step from the current position to the other.
+        Compute the difference in two positions,
+        represented as a step from the current position to
+        the other.
 
         Raises ValueError if the other position is more
         than one step away from self.
@@ -110,7 +112,7 @@ class PosBase(ABC):
         return f"({self.r}, {self.c})"
 
 
-######################################################################
+###########################################################
 
 
 class StrandBase(ABC):
@@ -143,9 +145,9 @@ class StrandBase(ABC):
     @abstractmethod
     def is_cyclic(self) -> bool:
         """
-        Decide whether or not the strand is cyclic. That is,
-        check whether or not any position appears multiple
-        times in the strand.
+        Decide whether or not the strand is cyclic. That
+        is, check whether or not any position appears
+        multiple times in the strand.
         """
         raise NotImplementedError
 
@@ -158,12 +160,15 @@ class StrandBase(ABC):
         a strand.
         """
         if isinstance(other, StrandBase):
-            return self.start == other.start and self.steps == other.steps
+            return (
+                self.start == other.start
+                and self.steps == other.steps
+                )
         else:
             raise NotImplementedError
 
 
-######################################################################
+###########################################################
 
 
 class BoardBase(ABC):
@@ -222,7 +227,7 @@ class BoardBase(ABC):
         raise NotImplementedError
 
 
-######################################################################
+###########################################################
 
 
 class StrandsGameBase(ABC):
@@ -231,7 +236,11 @@ class StrandsGameBase(ABC):
     """
 
     @abstractmethod
-    def __init__(self, game_file: str | list[str], hint_threshold: int = 3):
+    def __init__(
+        self,
+        game_file: str | list[str],
+        hint_threshold: int = 3
+        ):
         """
         Constructor
 
@@ -322,10 +331,11 @@ class StrandsGameBase(ABC):
 
         Note two strands may overlap, meaning they involve
         different sequences of steps yet identify the same
-        absolute positions on the board. This method returns
-        the strands that have been submitted through the
-        user interface (i.e. submit_strand) and thus may
-        deviate from the strands stored in answers.
+        absolute positions on the board. This method
+        returns the strands that have been submitted
+        through the user interface (i.e. submit_strand)
+        and thus may deviate from the strands stored in
+        answers.
         """
         raise NotImplementedError
 
@@ -363,19 +373,24 @@ class StrandsGameBase(ABC):
             if there is no active hint.
 
         Returns (i, False):
-            if the active hint corresponds to the ith answer
-            in the list of answers, but the start and end
-            positions _should not_ be shown to the user.
+            if the active hint corresponds to the ith
+            answer in the list of answers, but the start
+            and end positions _should not_ be shown to the
+            user.
 
         Returns (i, True):
-            if the active hint corresponds to the ith answer
-            in the list of answers, and the start and end
-            positions _should_ be shown to the user.
+            if the active hint corresponds to the ith
+            answer in the list of answers, and the start
+            and end positions _should_ be shown to the
+            user.
         """
         raise NotImplementedError
 
     @abstractmethod
-    def submit_strand(self, strand: StrandBase) -> tuple[str, bool] | str:
+    def submit_strand(
+        self,
+        strand: StrandBase
+        ) -> tuple[str, bool] | str:
         """
         Play a selected strand.
 
@@ -394,8 +409,9 @@ class StrandsGameBase(ABC):
 
         Returns "Too short":
             if the strand corresponds to fewer than four
-            letters (unless it is a three-letter theme word,
-            in which case the result is (word, True)).
+            letters (unless it is a three-letter theme
+            word, in which case the result is
+            (word, True)).
 
         Returns "Not in word list":
             if the strand corresponds to a string that
@@ -409,14 +425,14 @@ class StrandsGameBase(ABC):
         Play a hint.
 
         Returns (i, b):
-            if successfully updated the active hint. The new
-            hint corresponds to the ith answer in the list of
-            all answers, which is the first answer that has
-            not already been found. The boolean b describes
-            whether there was already an active hint before
-            this call to use_hint (and thus whether or not the
-            first and last letters of the hint word should be
-            highlighted).
+            if successfully updated the active hint. The
+            new hint corresponds to the ith answer in the
+            list of all answers, which is the first answer
+            that has not already been found. The boolean b
+            describes whether there was already an active
+            hint before this call to use_hint (and thus
+            whether or not the first and last letters of
+            the hint word should be highlighted).
 
         Returns "No hint yet":
             if the current hint meter does not yet warrant

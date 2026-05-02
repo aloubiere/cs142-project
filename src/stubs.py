@@ -1,30 +1,36 @@
 """
-Game logic stubs: PosStub, StrandStub, BoardStub, StrandsGameStub
+Game logic stubs:
+    PosStub,
+    StrandStub,
+    BoardStub,
+    StrandsGameStub
 
 This stub implementation behaves as follows:
 
 - The "CS 142" game, described in boards/cs-142.txt, is
-  hard-coded into the implementation. The actual text file
-  is not used at all.
+    hard-coded into the implementation. The actual text
+    file is not used at all.
 
 - The 3x5 board is hard-coded with the rows:
-  CSMCT, OFORY, and NEOWT
+    CSMCT, OFORY, and NEOWT
 
 - There are four hard-coded answer strands, corresponding
-  to CMSC, ONE, FORTY, and TWO.
+    to CMSC, ONE, FORTY, and TWO.
 
 - When a strand is submitted to the game for consideration
-  as a new theme or dictionary word, the strand argument is
-  completely ignored, and the game automatically "finds" the
-  next of the four hard-coded answer strands.
+    as a new theme or dictionary word, the strand argument
+    is completely ignored, and the game automatically
+    "finds" the next of the four hard-coded answer strands.
 
 - The hint feature is not attempted at all.
 
 - Several methods return simple, unhelpful results (as
-  opposed to raising NotImplementedErrors).
+    opposed to raising NotImplementedErrors).
 """
 
-from base import BoardBase, PosBase, Step, StrandBase, StrandsGameBase
+from base import (
+    BoardBase, PosBase, Step, StrandBase, StrandsGameBase
+    )
 
 
 class PosStub(PosBase):
@@ -58,15 +64,18 @@ class StrandStub(StrandBase):
     # instances have been created
     counter = 0
 
-    # StrandStub.positions{1,2,3,4} are hard-coded positions
-    # corresponding to the four answer strands (CMSC, ONE, FORTY, TWO)
+    # StrandStub.positions{1,2,3,4} are hard-coded
+    # positions corresponding to the four answer strands
+    # (CMSC, ONE, FORTY, TWO)
     positions1: list[PosBase] = [
         PosStub(0, 3),
         PosStub(0, 2),
         PosStub(0, 1),
         PosStub(0, 0),
-    ]
-    positions2: list[PosBase] = [PosStub(1, 0), PosStub(2, 0), PosStub(2, 1)]
+        ]
+    positions2: list[PosBase] = [
+        PosStub(1, 0), PosStub(2, 0), PosStub(2, 1)
+        ]
     positions3: list[PosBase] = [
         PosStub(1, 1),
         PosStub(1, 2),
@@ -74,14 +83,16 @@ class StrandStub(StrandBase):
         PosStub(0, 4),
         PosStub(1, 4),
     ]
-    positions4: list[PosBase] = [PosStub(2, 4), PosStub(2, 3), PosStub(2, 2)]
+    positions4: list[PosBase] = [
+        PosStub(2, 4), PosStub(2, 3), PosStub(2, 2)
+        ]
 
     all_positions: list[list[PosBase]] = [
         positions1,
         positions2,
         positions3,
         positions4,
-    ]
+        ]
 
     #
     # Instance attribute
@@ -108,11 +119,11 @@ class StrandStub(StrandBase):
         return StrandStub.all_positions[self.strand_id]
 
     def is_cyclic(self) -> bool:
-        """Not implemented"""
+        """ Not implemented """
         raise NotImplementedError
 
     def is_folded(self) -> bool:
-        """Not implemented"""
+        """ Not implemented """
         raise NotImplementedError
 
 
@@ -122,29 +133,32 @@ class BoardStub(BoardBase):
     """
 
     def __init__(self, letters: list[list[str]]):
-        """Constructor"""
+        """ Constructor """
         self._letters = letters
 
     def num_rows(self) -> int:
-        """Hard-coded to return 3"""
+        """ Hard-coded to return 3 """
         return 3
 
     def num_cols(self) -> int:
-        """Hard-coded to return 5"""
+        """ Hard-coded to return 5 """
         return 5
 
     def get_letter(self, pos: PosBase) -> str:
-        """Get letter at position. May raise IndexError."""
+        """
+        Get letter at position. May raise IndexError.
+        """
         return self._letters[pos.r][pos.c]
 
     def evaluate_strand(self, strand: StrandBase) -> str:
-        """Not implemented"""
+        """ Not implemented """
         raise NotImplementedError
 
 
 class StrandsGameStub(StrandsGameBase):
     """
-    Stub game logic. See module docstring at the top of file.
+    Stub game logic. See module docstring at the top of
+    file.
     """
 
     # Answers tracked in order from game file
@@ -157,20 +171,31 @@ class StrandsGameStub(StrandsGameBase):
         """
         Constructor. See module docstring.
         """
-        strand1 = StrandStub(PosStub(0, 3), [Step.W, Step.W, Step.W])
-        strand2 = StrandStub(PosStub(1, 0), [Step.S, Step.E])
-        strand3 = StrandStub(PosStub(1, 1), [Step.E, Step.E, Step.NE, Step.S])
-        strand4 = StrandStub(PosStub(2, 4), [Step.W, Step.W])
+        strand1 = StrandStub(
+            PosStub(0, 3),
+            [Step.W, Step.W, Step.W]
+            )
+        strand2 = StrandStub(
+            PosStub(1, 0),
+            [Step.S, Step.E]
+            )
+        strand3 = StrandStub(
+            PosStub(1, 1),
+            [Step.E, Step.E, Step.NE, Step.S]
+            )
+        strand4 = StrandStub(
+            PosStub(2, 4), [Step.W, Step.W]
+            )
         self.strands = [strand1, strand2, strand3, strand4]
 
         self.found = []
 
     def theme(self) -> str:
-        """See module docstring"""
+        """ See module docstring """
         return '"CS 142"'
 
     def board(self) -> BoardBase:
-        """See module docstring"""
+        """ See module docstring """
         return BoardStub(
             [
                 [x for x in "CSMCT"],
@@ -180,7 +205,7 @@ class StrandsGameStub(StrandsGameBase):
         )
 
     def answers(self) -> list[tuple[str, StrandBase]]:
-        """See module docstring"""
+        """ See module docstring """
         return [
             ("cmsc", self.strands[0]),
             ("one", self.strands[1]),
@@ -189,27 +214,30 @@ class StrandsGameStub(StrandsGameBase):
         ]
 
     def found_strands(self) -> list[StrandBase]:
-        """See module docstring"""
+        """ See module docstring """
         return self.found
 
     def hint_threshold(self) -> int:
-        """See module docstring"""
+        """ See module docstring """
         return 0
 
     def hint_meter(self) -> int:
-        """See module docstring"""
+        """ See module docstring """
         return 0
 
     def active_hint(self) -> None | tuple[int, bool]:
-        """See module docstring"""
+        """ See module docstring """
         return None
 
     def game_over(self) -> bool:
-        """See module docstring"""
+        """ See module docstring """
         return False
 
-    def submit_strand(self, strand: StrandBase) -> tuple[str, bool] | str:
-        """See module docstring"""
+    def submit_strand(
+        self,
+        strand: StrandBase
+        ) -> tuple[str, bool] | str:
+        """ See module docstring """
         count = len(self.found)
         if count == 4:
             raise ValueError("Game is already over")
@@ -220,5 +248,5 @@ class StrandsGameStub(StrandsGameBase):
         return ("BLAH", True)
 
     def use_hint(self) -> tuple[int, bool] | str:
-        """See module docstring"""
+        """ See module docstring """
         return "No hint for you. Next!"

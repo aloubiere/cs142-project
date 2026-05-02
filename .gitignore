@@ -169,3 +169,7 @@ cython_debug/
 # CS 142-specific
 *.gz
 tests.json
+
+# Amber's Stuff 
+milestone*.pdf
+.vscode/
