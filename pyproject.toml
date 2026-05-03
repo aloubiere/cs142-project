@@ -38,6 +38,9 @@ extend-exclude = [
     "src/base.py",
     "src/stubs.py"
     ]
+[tool.ruff.lint.per-file-ignores]
+"src/fakes.py" = ["F401"]
+"src/strands.py" = ["F401"]
 
 [tool.pylint.basic]
 variable-rgx = "[a-zA-Z_][a-z0-9_]{0,30}$"
@@ -52,7 +55,7 @@ disable = ["W0611", "R0903", "R1705", "W0622"]
 
 [tool.pylint.master]
 extension-pkg-allow-list = "pygame"
-source-roots = "src"
+source-roots = ["src", "tests"]
 ignore = [
     "test_fake.py",
     "base.py",
@@ -61,7 +64,7 @@ ignore = [
     ".venv",
     "assets",
     "boards",
-    ".vscode/"
+    ".vscode"
     ]
 
 [tool.mypy]

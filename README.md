@@ -1,6 +1,6 @@
 # CMSC 14200 Course Project
 
 Team members:
-- Amber Loubiere (aloubiere)
-- Palaash Goyal (palaashg)
-- Vedat Tutuncu (vtutuncu)
+- GUI: Amber Loubiere (aloubiere)
+- QA: Palaash Goyal (palaashg)
+- TUI: Vedat Tutuncu (vtutuncu)
