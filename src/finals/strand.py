@@ -1,7 +1,7 @@
 """
 StrandFake Class Implementation
 """
-# pylint: disable = duplicate-code
+# Amber
 
 from base import StrandBase, PosBase
 
@@ -22,7 +22,10 @@ class Strand(StrandBase):
         positions assume a board of infinite size in all
         directions.
         """
-        raise NotImplementedError
+        positions = [self.start]
+        for step in self.steps:
+            positions.append(positions[-1].take_step(step))
+        return positions
 
 
     def is_cyclic(self) -> bool:
@@ -31,4 +34,9 @@ class Strand(StrandBase):
         is, check whether or not any position appears
         multiple times in the strand.
         """
-        raise NotImplementedError
+        positions = self.positions()
+        for i, pos1 in enumerate(positions):
+            for pos2 in positions[i + 1 :]:
+                if pos1 == pos2:
+                    return True
+        return False
