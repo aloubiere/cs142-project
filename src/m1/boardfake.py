@@ -11,6 +11,7 @@ class BoardFake(BoardBase):
     rectangular grid of letters.
     """
 
+    _letters: list[list[str]]
 
     def __init__(self, letters: list[list[str]]):
         """
@@ -23,21 +24,40 @@ class BoardFake(BoardBase):
 
         Raises ValueError if the matrix is invalid.
         """
-        raise NotImplementedError()
+        if len(letters) == 0:
+            raise ValueError("Board must have at least one row")
 
+        num_cols = len(letters[0])
+
+        if num_cols == 0:
+            raise ValueError("Board rows must be non-empty")
+
+        for row in letters:
+            if len(row) != num_cols:
+                raise ValueError("Board must be rectangular")
+
+            for letter in row:
+                if len(letter) != 1:
+                    raise ValueError("Each board entry must be one character")
+                if not letter.isalpha():
+                    raise ValueError("Each board entry must be alphabetical")
+                if not letter.islower():
+                    raise ValueError("Each board entry must be lowercase")
+
+        self._letters = letters
 
     def num_rows(self) -> int:
         """
         Return the number of rows on the board.
         """
-        raise NotImplementedError()
+        return len(self._letters)
 
 
     def num_cols(self) -> int:
         """
         Return the number of columns on the board.
         """
-        raise NotImplementedError()
+        return len(self._letters[0])
 
 
     def get_letter(self, pos: PosBase) -> str:
@@ -47,8 +67,13 @@ class BoardFake(BoardBase):
         Raises ValueError if the position is not within the
         bounds of the board.
         """
-        raise NotImplementedError
+        if pos.r < 0 or pos.r >= self.num_rows():
+            raise ValueError("Position row is out of bounds")
 
+        if pos.c < 0 or pos.c >= self.num_cols():
+            raise ValueError("Position column is out of bounds")
+
+        return self._letters[pos.r][pos.c]
 
     def evaluate_strand(self, strand: StrandBase) -> str:
         """
@@ -58,4 +83,14 @@ class BoardFake(BoardBase):
         Raises ValueError if any of the strand's positions
         are not within the bounds of the board.
         """
-        raise NotImplementedError
+        letters = []
+
+        for pos in strand.positions():
+            if pos.r < 0 or pos.r >= self.num_rows():
+                raise ValueError("Strand position row is out of bounds")
+            if pos.c < 0 or pos.c >= self.num_cols():
+                raise ValueError("Strand position column is out of bounds")
+
+            letters.append(self.get_letter(pos))
+
+        return "".join(letters)

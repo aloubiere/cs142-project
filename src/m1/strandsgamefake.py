@@ -3,12 +3,24 @@ StrandsGameFake Class Implementation
 """
 # Palaash and Vedat
 
-from base import StrandsGameBase, BoardBase, StrandBase
+from base import StrandsGameBase, BoardBase, StrandBase, Step
+from finals.pos import Pos
+from finals.strand import Strand as StrandFake
+from m1.boardfake import BoardFake
 
 class StrandsGameFake(StrandsGameBase):
     """
     Class for Strands game logic.
     """
+
+    _theme: str
+    _board: BoardBase
+    _answers: list[tuple[str, StrandBase]]
+    _found_words: list[str]
+    _found_strands: list[StrandBase]
+    _hint_threshold_value: int
+    _hint_meter_value: int
+    _active_hint_value: None | tuple[int, bool]
 
     def __init__(
         self,
@@ -69,22 +81,88 @@ class StrandsGameFake(StrandsGameBase):
         characters to separate tokens on a line. Also,
         leading and trailing whitespace will be ignored.
         """
-        raise NotImplementedError
 
+        self._hint_threshold = hint_threshold
+        self._hint_meter = 0
+        self._active_hint = None
+        self._found_indices = []
+        self._found_strands = []
+
+        if isinstance(game_file, str):
+            with open(game_file, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        else:
+            lines = game_file
+
+        sections: list[list[str]] = []
+        current_section: list[str] = []
+
+        for line in lines:
+            stripped = line.strip()
+
+            if stripped == "":
+                if current_section:
+                    sections.append(current_section)
+                    current_section = []
+            else:
+                current_section.append(stripped)
+
+        if current_section:
+            sections.append(current_section)
+
+        if len(sections) < 3:
+            raise ValueError("Game file must include theme, board, and answers")
+
+        theme_line = sections[0][0]
+        self._theme = theme_line
+
+        letters: list[list[str]] = []
+
+        for board_line in sections[1]:
+            row = []
+
+            for token in board_line.split():
+                row.append(token.lower())
+
+            letters.append(row)
+
+        self._board = BoardFake(letters)
+
+        self._answers = []
+
+        for answer_line in sections[2]:
+            tokens = answer_line.split()
+
+            if len(tokens) < 3:
+                raise ValueError("Answer line must include word, row, and column")
+
+            word = tokens[0].lower()
+            row = int(tokens[1]) - 1
+            col = int(tokens[2]) - 1
+
+            steps: list[Step] = []
+
+            for token in tokens[3:]:
+                steps.append(Step(token.lower()))
+
+            strand = StrandFake(Pos(row, col), steps)
+
+            if self._board.evaluate_strand(strand) != word:
+                raise ValueError("Answer strand does not spell answer word")
+
+            self._answers.append((word, strand))
 
     def theme(self) -> str:
         """
         Return the theme for the game.
         """
-        raise NotImplementedError
-
+        return self._theme
 
     def board(self) -> BoardBase:
         """
         Return the board for the game.
         """
-        raise NotImplementedError
-
+        return self._board
 
     def answers(self) -> list[tuple[str, StrandBase]]:
         """
@@ -94,8 +172,7 @@ class StrandsGameFake(StrandsGameBase):
         stored using lowercase letters, even if the
         game file used uppercase letters.
         """
-        raise NotImplementedError
-
+        return self._answers
 
     def found_strands(self) -> list[StrandBase]:
         """
@@ -111,8 +188,7 @@ class StrandsGameFake(StrandsGameBase):
         and thus may deviate from the strands stored in
         answers.
         """
-        raise NotImplementedError
-
+        return self._found_strands
 
     def game_over(self) -> bool:
         """
@@ -120,15 +196,13 @@ class StrandsGameFake(StrandsGameBase):
         checking whether or not all theme words have been
         found.
         """
-        raise NotImplementedError
-
+        return len(self._found_indices) == len(self._answers)
 
     def hint_threshold(self) -> int:
         """
         Return the hint threshold for the game.
         """
-        raise NotImplementedError
-
+        return self._hint_threshold
 
     def hint_meter(self) -> int:
         """
@@ -136,8 +210,7 @@ class StrandsGameFake(StrandsGameBase):
         If it is greater than or equal to the hint
         threshold, then the user can request a hint.
         """
-        raise NotImplementedError
-
+        return self._hint_meter
 
     def active_hint(self) -> None | tuple[int, bool]:
         """
@@ -158,8 +231,7 @@ class StrandsGameFake(StrandsGameBase):
             and end positions _should_ be shown to the
             user.
         """
-        raise NotImplementedError
-
+        return self._active_hint
 
     def submit_strand(
         self,
@@ -191,8 +263,25 @@ class StrandsGameFake(StrandsGameBase):
             if the strand corresponds to a string that
             is not a valid dictionary word.
         """
-        raise NotImplementedError
+        for i, answer in enumerate(self._answers):
+            word, answer_strand = answer
 
+            if strand.start == answer_strand.start:
+                if i in self._found_indices:
+                    return "Already found"
+
+                self._found_indices.append(i)
+                self._found_strands.append(answer_strand)
+
+                if self._active_hint is not None:
+                    hint_index, _ = self._active_hint
+
+                    if hint_index == i:
+                        self._active_hint = None
+
+                return (word, True)
+
+        return "Not a theme word"
 
     def use_hint(self) -> tuple[int, bool] | str:
         """
@@ -216,4 +305,18 @@ class StrandsGameFake(StrandsGameBase):
             if there is already an active hint where the
             first and last letters are being displayed.
         """
-        raise NotImplementedError
+        if self._active_hint is None:
+            for i, _ in enumerate(self._answers):
+                if i not in self._found_indices:
+                    self._active_hint = (i, False)
+                    return (i, False)
+
+            return "No hint yet"
+
+        hint_index, show_start_end = self._active_hint
+
+        if not show_start_end:
+            self._active_hint = (hint_index, True)
+            return (hint_index, True)
+
+        return "Use your current hint"
