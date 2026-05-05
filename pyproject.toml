@@ -76,6 +76,7 @@ exclude = [
     "src/base.py",
     "src/stubs.py"
     ]
+mypy_path = "src"
 
 [tool.pytest]
 pythonpath = ["src"]
