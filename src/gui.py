@@ -4,13 +4,17 @@ Strands GUI Implementation
 # Amber
 
 import sys
+from string import Formatter
 from typing import TypeAlias, Callable, Any
 from functools import wraps
 import pygame
 from base import (
     PosBase, StrandBase, StrandsGameBase
     )
-from strands import Pos, StrandsGame
+from stubs import PosStub as Pos
+from stubs import StrandsGameStub as StrandsGame
+
+HINT_THRESHOLD = 3
 
 FRAME_RATE: int = 24
 BUFFER: int = 25
@@ -20,32 +24,128 @@ CAPTION = "Strands"
 
 GRID_SIZE: int = 60
 HEADER = FOOTER = 50
-TEXT_BUFFER: float = 1/6
+TEXT_BUFFER: float = 1 - 1/6
+ELEMENT_BUFFER: float = 1 - 1/6
 LETTER_COLOR: pygame.Color = pygame.Color("black")
 SELECT_COLOR: pygame.Color = pygame.Color("lightgray")
 HINT_COLOR: pygame.Color = pygame.Color("lightblue")
 FOUND_COLOR: pygame.Color = pygame.Color("lightblue")
 TEXT_COLOR: pygame.Color = pygame.Color("black")
 
-
 Specs: TypeAlias = tuple[int, int, int, int]
+
+
+def set_alpha(
+    color: pygame.Color,
+    a: int
+    ) -> pygame.Color:
+    """
+    return a new pygame.Color object with the same RBG
+    values as `color` but the alpha value is set to `a`.
+    """
+    return pygame.Color(color.r, color.g, color.b, a)
+
 
 class Text(pygame.sprite.Sprite):
     """ class for all text elements in the game """
 
+    _init: bool
     image: pygame.Surface
     rect: pygame.Rect
     text: str
     color: pygame.Color
+    border: bool
 
-    def __init__(self, text: str, xywh: Specs) -> None:
+
+    def __init__(
+        self,
+        text: str,
+        xywh: Specs,
+        border: bool = False
+        ) -> None:
         """ constructor """
-        # TODO
+        self._init = True
+        super().__init__()
+        if not isinstance(border, bool):
+            raise TypeError(
+                "The argument `border` must be boolean."
+                )
+        self.border = border
+        Text.retext(self, text, TEXT_COLOR)
+        Text.resize(self, xywh)
+        self._init = False
+        Text.render(self)
+
+
+    def _textify(self) -> None:
+        """ fit and render the font """
+        size = height = round(
+            self.rect.height * TEXT_BUFFER
+            )
+        width = round(self.rect.width * TEXT_BUFFER)
+        w, h = pygame.font.SysFont(
+            None,
+            size
+            ).size(self.text)
+        while w > width or h > height:
+            size -= 1
+            w, h = pygame.font.SysFont(
+                None,
+                size
+                ).size(self.text)
+        text = pygame.font.SysFont(None, size).render(
+            self.text, True, self.color
+            )
+        width, height = tuple(self.rect.size)
+        self.image.blit(
+            text,
+            ((width - w) / 2, (height - h) / 2)
+            )
+
+
+    def _initify(self) -> None:
+        """ create the surface """
+        self.image = pygame.Surface(
+            self.rect.size,
+            pygame.SRCALPHA
+            )
+        self.image.fill(set_alpha(CANVAS_COLOR, 0))
+
+
+    def _bordify(self) -> None:
+        """ draw a border """
+        rect = self.image.get_rect().scale_by(
+                ELEMENT_BUFFER, ELEMENT_BUFFER
+                )
+        border_radius = round(max(1, min(*rect.size) / 12))
+        pygame.draw.rect(
+            self.image,
+            self.color,
+            rect,
+            2,
+            border_radius = border_radius
+            )
 
 
     def resize(self, xywh: Specs) -> None:
         """ update the size and/or position """
-        # TODO
+        if (
+            not isinstance(xywh, tuple)
+            or any(not isinstance(n, int) for n in xywh)
+            ):
+            raise TypeError(
+                "The argument `xywh` must be a tuple of 4 \
+                integer."
+                )
+        if self._init:
+            self.rect = pygame.Rect(*xywh)
+        else:
+            self.rect.update(*xywh)
+        self.rect.scale_by_ip(
+            ELEMENT_BUFFER, ELEMENT_BUFFER
+            )
+        if not self._init:
+            Text.render(self)
 
 
     def retext(
@@ -54,17 +154,32 @@ class Text(pygame.sprite.Sprite):
         color: pygame.Color | None = None
         ) -> None:
         """ update the text """
-        # TODO
+        if not isinstance(text, str):
+            raise TypeError(
+                "The argument `text` must be a string."
+                )
+        self.text = text
+        if color is not None:
+            if not isinstance(color, pygame.Color):
+                raise TypeError(
+                    "The argument `color` must be a \
+                    pygame.Color object or None."
+                    )
+            self.color = color
+        if not self._init:
+            Text.render(self)
 
 
     def render(self) -> None:
         """ update the image """
-        # TODO
+        Text._initify(self)
+        Text._textify(self)
 
 
 class Letter(Text):
     """ class for all letter elements in the game """
 
+    # _init: bool
     # image: pygame.Surface
     # rect: pygame.Rect
     # text: str
@@ -73,14 +188,23 @@ class Letter(Text):
     highlight_secondary: pygame.Color | None
     position: PosBase
 
+
     def __init__(
         self, pos: PosBase, ch: str, xywh: Specs
         ) -> None:
         """ constructor """
-        assert isinstance(pos, PosBase), \
-            "The argument `pos` must be a PosBase object."
-        self.position = pos
         super().__init__(ch, xywh)
+        self._init = True
+        if not isinstance(pos, PosBase):
+            raise TypeError(
+                "The argument `pos` must be a PosBase \
+                object."
+                )
+        self.position = pos
+        self.highlight_primary = None
+        self.highlight_secondary = None
+        self._init = False
+        Letter.render(self)
 
 
     def update(
@@ -91,31 +215,56 @@ class Letter(Text):
         h: int
         ) -> None:
         """ update the size and/or position """
-        self.resize((
-            xb + self.position.c * w,
-            yb + self.position.r * h,
-            w,
-            h
-            ))
-        self.render()
+        Letter.resize(
+            self,
+            (
+                xb + self.position.c * w,
+                yb + self.position.r * h,
+                w,
+                h
+                )
+            )
+        Letter.render(self)
+
+
+    def _highlightify(self) -> None:
+        """ highlight a letter """
+        if self.highlight_primary is not None:
+            highlight = self.highlight_primary
+        elif self.highlight_secondary is not None:
+            highlight = self.highlight_secondary
+        else:
+            highlight = None
+        if highlight is not None:
+            pygame.draw.circle(
+                self.image,
+                highlight,
+                self.image.get_rect().center,
+                1/2 * ELEMENT_BUFFER * min(self.rect.size)
+                )
 
 
     def render(self) -> None:
         """ update the image """
-        # TODO
+        Letter._initify(self)
+        Letter._highlightify(self)
+        if self.border:
+            Letter._bordify(self)
+        Letter._textify(self)
 
 
 class Meter(Text):
     """ class for a meter element in the game """
 
+    # _init: bool
     # image: pygame.Surface
     # rect: pygame.Rect
     # text: str
     # color: pygame.Color
     textform: str | None
     progress: int
-    threshhold: int
-    use_bar: bool | None
+    threshold: int
+    use_bar: bool
 
 
     def __init__(
@@ -126,23 +275,41 @@ class Meter(Text):
         use_bar: bool = False
         ) -> None:
         """ constructor """
-        assert isinstance(threshold, int) \
-            and threshold > 0, \
-            "The argument `threshold` must be a positive \
-            integer."
-        self.threshhold = threshold
-        assert isinstance(use_bar, bool), \
-            "The argument `use_bar` must be a boolean."
-        try:
-            self.textform = text
-            text = text.format(
-                progress = 0, threshold = threshold
-                )
-            self.use_bar = use_bar
-        except TypeError:
-            self.textform = None
-            self.use_bar = None
         super().__init__(text, xywh)
+        self._init = True
+
+        if not isinstance(use_bar, bool):
+            raise TypeError(
+                "The argument `use_bar` must be boolean."
+                )
+        self.use_bar = use_bar
+
+        if not isinstance(threshold, int):
+            raise TypeError(
+                "The argument `threshold` must be a \
+                positive integer."
+                )
+        if not threshold > 0:
+            raise ValueError(
+                "The argument `threshold` must be a \
+                positive integer."
+                )
+        self.threshold = threshold
+
+
+        parameters = set(
+            field for _, field, _, _
+            in Formatter().parse(text)
+            )
+        if parameters == {'progress', 'threshold'}:
+            self.textform = text
+        else:
+            self.textform = None
+
+        Meter.reprogress(self, 0)
+
+        self._init = False
+        Meter.render(self)
 
 
     def reprogress(self, progress: int) -> None:
@@ -157,18 +324,48 @@ class Meter(Text):
             and progress >= 0, \
             "The argument `progress` must be a \
             nonnegative integer."
-        self.progress = min(progress, self.threshhold)
+        self.progress = min(progress, self.threshold)
         if self.textform is not None:
             self.retext(self.textform.format(
                 progress = self.progress,
-                threshold = self.threshhold
+                threshold = self.threshold
             ))
-        self.render()
+        if not self._init:
+            Meter.render(self)
 
 
     def render(self) -> None:
         """ update the image """
-        # TODO
+        Meter._initify(self)
+        if self.use_bar:
+            Meter._barify(self)
+        elif self.border:
+            Meter._bordify(self)
+        Meter._textify(self)
+
+
+    def _barify(self) -> None:
+        """ create a progress bar """
+        rect = self.image.get_rect().scale_by(
+            ELEMENT_BUFFER, ELEMENT_BUFFER
+            )
+        border_radius = round(max(1, min(*rect.size) / 12))
+        pygame.draw.rect(
+            self.image,
+            set_alpha(self.color, 128),
+            rect.scale_by(
+                self.progress / self.threshold, 1
+                ),
+            border_top_left_radius = border_radius,
+            border_bottom_left_radius = border_radius
+            )
+        pygame.draw.rect(
+            self.image,
+            self.color,
+            rect,
+            2,
+            border_radius = border_radius
+            )
 
 
 Noner: TypeAlias = Callable[..., None]
@@ -194,19 +391,20 @@ class StrandGUI():
 
     # Display
     canvas: pygame.Surface
-    xb: int
-    yb: int
-    a: float
+    adjustments: tuple[float, int, int]
     clock: pygame.time.Clock
 
     # Game
     game: StrandsGameBase
     selected: StrandBase | None
+    ## to hopefully add to StrandsGame
+    unfound_answers: dict[str, StrandBase]
+    found_answers: list[StrandBase]
     ## Visual Game Elements
-    letters: pygame.sprite.Group[Letter]
-    hint: Meter
+    letters: pygame.sprite.Group
+    hint: Meter | Text
     message: Text
-    found: Meter
+    found: Meter | Text
     theme: Text
 
 
@@ -224,7 +422,10 @@ class StrandGUI():
 
         assert isinstance(mode, bool), \
             "The argument `mode` must be boolean."
-        self.game = StrandsGame(game_file)
+        self.game = StrandsGame(game_file, HINT_THRESHOLD)
+        self.found_answers = []
+        self.unfound_answers = dict(self.game.answers())
+        self.selected = None
 
         pygame.init()
         pygame.display.set_caption(CAPTION)
@@ -232,6 +433,7 @@ class StrandGUI():
             self._size(True),
             pygame.RESIZABLE
             )
+        self._generate_elements()
         self.clock = pygame.time.Clock()
 
         if mode:
@@ -244,9 +446,9 @@ class StrandGUI():
         """ scale the window for the board """
         rows = self.game.board().num_rows()
         cols = self.game.board().num_cols()
-        w = round(rows * GRID_SIZE + 2 * BUFFER)
+        w = round(cols * GRID_SIZE + 2 * BUFFER)
         h = round(
-            cols * GRID_SIZE + 2 * BUFFER + HEADER + FOOTER
+            rows * GRID_SIZE + 2 * BUFFER + HEADER + FOOTER
             )
         min_width, min_height = CANVAS_SIZE
         if w < min_width and h < min_height:
@@ -264,31 +466,30 @@ class StrandGUI():
         init: bool = False
         ) -> None:
         """ scale the board for the window """
-
         rows = self.game.board().num_rows()
         cols = self.game.board().num_cols()
-        board_width = rows * GRID_SIZE
-        board_height = cols * GRID_SIZE + HEADER + FOOTER
+        board_width = cols * GRID_SIZE
+        board_height = rows * GRID_SIZE + HEADER + FOOTER
 
         if rows > 0 and cols > 0:
-            self.a = min(
+            a = min(
                 ((w - 2 * BUFFER) / board_width),
                 ((h - 2 * BUFFER) / board_height)
                 )
         else:
-            self.a = 0
+            a = 0
 
-        self.xb = round((w - board_width * self.a) / 2)
-        self.yb = round((h - board_height * self.a) / 2)
+        xb = round((w - board_width * a) / 2)
+        yb = round((h - board_height * a) / 2)
 
-        if init:
-            self._generate_elements()
-        else:
+        self.adjustments = (a, xb, yb)
+        if not init:
             self._update_elements()
 
 
     def _generate_elements(self) -> None:
         """ generate all visual game elements """
+        a, xb, yb = self.adjustments
         rows = self.game.board().num_rows()
         cols = self.game.board().num_cols()
 
@@ -297,126 +498,89 @@ class StrandGUI():
         for i in range(rows):
             for j in range(cols):
                 pos = Pos(i, j)
-                ch = self.game.board().get_letter(pos)
-                x = round(self.a * i * GRID_SIZE + self.xb)
-                y = round(
-                    self.a * (HEADER + j * GRID_SIZE)
-                    + self.yb
-                    )
-                w = round(self.a * GRID_SIZE)
-                h = round(self.a * GRID_SIZE)
-                self.letters.add(
-                    Letter(pos, ch, (x, y, w, h))
-                    )
+                self.letters.add(Letter(
+                    pos,
+                    self.game.board().get_letter(pos),
+                    (
+                        round(a * j * GRID_SIZE + xb),
+                        round(
+                            a * (HEADER + i * GRID_SIZE)
+                            + xb
+                            ),
+                        round(a * GRID_SIZE),
+                        round(a * GRID_SIZE)
+                        )
+                    ))
 
-        # generate footers
-        max_w = round(
-            1/2 * (self.canvas.get_width() - 2 * self.xb)
-            )
-        y = round(
-            self.canvas.get_height() - self.yb
-            - self.a * FOOTER
-            )
-        h = FOOTER
-        self.hint = Meter(
-            "HINT",
-            (
-                self.xb,
-                y,
-                round(min(3/2 * self.a * FOOTER, max_w)),
-                h
-                ),
-            self.game.hint_threshold()
-            )
-        self.found = Meter(
-            "Found {progress}/{threshold}",
-            (
-                max_w + self.xb,
-                y,
-                round(min(2 * self.a * FOOTER, max_w)),
-                h
-                ),
-            len(self.game.answers())
-            )
-
-        # generate headers
-        y = self.yb
-        h = HEADER
-        w = round(min(3 * self.a * HEADER, max_w))
+        # generate texts
+        canvas_w, canvas_h = self.canvas.get_size()
+        max_w = round(1/2 * (canvas_w - 2 * xb))
+        w = round(min(3 * a * HEADER, max_w))
+        ## generate footers
+        y = round(canvas_h - yb - a * FOOTER)
+        h = round(FOOTER * a)
+        if self.game.hint_threshold() == 0:
+            self.hint = Text("HINT", (xb, y, w, h))
+        else:
+            self.hint = Meter(
+                "HINT",
+                (xb, y, w, h),
+                self.game.hint_threshold(),
+                True
+                )
+        self.hint.border = True
+        self.hint.render()
+        if len(self.game.answers()) == 0:
+            self.found = Text("Found?", (xb + w, y, w, h))
+        else:
+            self.found = Meter(
+                "Found {progress}/{threshold}",
+                (xb + w, y, w, h),
+                len(self.game.answers())
+                )
+        ## generate headers
+        h = round(HEADER * a)
         self.theme = Text(
-            self.game.theme(),
-            (
-                self.xb,
-                y,
-                w,
-                h
-                ),
+            f"Theme: {self.game.theme()}",
+            (xb, yb, w, h)
             )
         self.message = Text(
             "Good luck!",
-            (
-                self.xb + w,
-                y,
-                w,
-                h
-                ),
+            (xb + w, yb, w, h)
             )
 
 
     def _update_elements(self) -> None:
         """ update all visual game elements """
+        a, xb, yb = self.adjustments
 
         # update letters
         self.letters.update(
-            self.xb,
-            round(self.yb + self.a * HEADER),
-            round(self.a * GRID_SIZE),
-            round(self.a * GRID_SIZE)
+            xb,
+            round(yb + a * HEADER),
+            round(a * GRID_SIZE),
+            round(a * GRID_SIZE)
             )
 
-        # update footers
-        max_w = round(
-            1/2 * (self.canvas.get_width() - 2 * self.xb)
-            )
-        y = round(
-            self.canvas.get_height() - self.yb
-            - self.a * FOOTER
-            )
-        h = FOOTER
-        self.hint.resize((
-            self.xb,
-            y,
-            round(min(3/2 * self.a * FOOTER, max_w)),
-            h
-            ))
-        self.found.resize((
-            max_w + self.xb,
-            y,
-            round(min(2 * self.a * FOOTER, max_w)),
-            h
-            ))
-
-        # update headers
-        y = self.yb
-        h = HEADER
-        w = round(min(3 * self.a * HEADER, max_w))
-        self.theme.resize((
-            self.xb,
-            y,
-            w,
-            h
-            ))
-        self.message.resize((
-            self.xb + w,
-            y,
-            w,
-            h
-            ))
+        # update texts
+        canvas_w, canvas_h = self.canvas.get_size()
+        max_w = round(1/2 * (canvas_w - 2 * xb))
+        w = round(min(3 * a * HEADER, max_w))
+        ## update footers
+        y = round(canvas_h - yb - a * FOOTER)
+        h = round(FOOTER * a)
+        self.hint.resize((xb, y, w, h ))
+        self.found.resize((xb + w, y, w, h))
+        ## update headers
+        y = yb
+        h = round(HEADER * a)
+        self.theme.resize((xb, y, w, h))
+        self.message.resize((xb + w, y, w, h))
 
 
     def play(self) -> None:
         """ Event Loop """
-
+        dragging = False
         while True:
             events = pygame.event.get()
             for event in events:
@@ -459,27 +623,53 @@ class StrandGUI():
     @disable
     def _submit(self) -> None:
         """ submit a strand """
-        if self.selected is None or not self.selected.steps:
-            return
-        info = self.game.submit_strand(self.selected)
+        # WARNING: commented out for milestone 1
+        # if (
+        #     self.selected is None
+        #     or not self.selected.steps
+        #     ):
+        #     return
+
+        # WARNING: Remove mypy override after milestone 1
+        info = self.game.submit_strand(self.selected) # type: ignore
         if isinstance(info, str):
             self.message.retext(info, TEXT_COLOR)
         else:
             word, theme = info
             if theme:
-                self.message.retext(word, FOUND_COLOR)
-                self.found.reprogress(
-                    self.found.progress + 1
-                    )
-                self._update_found_letters()
-                self._update_hint_letters()
+                self._found_theme(word)
             else:
-                self.message.retext(word, SELECT_COLOR)
-                self.hint.reprogress(self.game.hint_meter())
+                self._found_other(word)
         self._deselect()
 
         if self.game.game_over():
             self.message.retext("You won!", TEXT_COLOR)
+
+
+    def _found_theme(self, word: str) -> None:
+        """ found a theme word """
+        # WARNING: value of word is changed for milestone 1
+        for key, s in self.unfound_answers.items():
+            # WARNING: Remove mypy override after milestone 1
+            if s.strand_id == len(self.found_answers): # type: ignore
+                word = key
+        strand = self.unfound_answers.pop(word)
+        self.found_answers.append(strand)
+        self.message.retext(word, FOUND_COLOR)
+        if isinstance(self.found, Meter):
+            self.found.reprogress(self.found.progress + 1)
+        positions = strand.positions()
+        for letter in self.letters:
+            if letter.position in positions:
+                letter.highlight_secondary = FOUND_COLOR
+                letter.render()
+
+
+    def _found_other(self, word: str) -> None:
+        """ found a non-theme word """
+        self.message.retext(word, SELECT_COLOR)
+        if isinstance(self.hint, Meter):
+            self.hint.reprogress(self.game.hint_meter())
 
 
     @disable
@@ -489,8 +679,10 @@ class StrandGUI():
         if isinstance(info, str):
             self.message.retext(info, TEXT_COLOR)
         else:
-            self.hint.reprogress(self.game.hint_meter())
             self._update_hint_letters()
+            if not isinstance(self.hint, Meter):
+                return
+            self.hint.reprogress(self.game.hint_meter())
 
 
     def _deselect(self) -> None:
@@ -508,11 +700,11 @@ class StrandGUI():
         dragging: bool
         ) -> None:
         """ select the letter given """
-        # TODO
+        # TODO: not required for milestone 1
 
 
     def _keydown(self, key: int) -> None:
-        """ process a keydown event """
+        """ process a keydown event with the given key """
         if key == pygame.K_q:
             self._quit()
         elif key == pygame.K_RETURN:
@@ -527,34 +719,68 @@ class StrandGUI():
         """ process a mouse click at the position given """
         if self.hint.rect.collidepoint(x, y):
             self._hint()
-        # TODO: handle selecting vs sumbitting
+        # TODO: not required for milestone 1
+        #       handle selecting vs submitting logic
 
 
     def _selecting(self, x: int, y: int) -> None:
-        """ process mouse dragging at the position given """
-        # TODO
+        """
+        process mouse dragging at the position given
+        """
+        # TODO: not required for milestone 1
 
 
     def _selected(self) -> None:
         """
         process the end of mouse dragging
         """
-        # TODO
+        # TODO: not required for milestone 1
 
 
     def _draw(self) -> None:
         """ draw the display """
-        # TODO
+        self.canvas.fill(CANVAS_COLOR)
+        self._draw_borders()
+        for strand in self.found_answers:
+            self._connect(strand, FOUND_COLOR)
+        if self.selected is not None:
+            self._connect(self.selected, SELECT_COLOR)
+        self.letters.draw(self.canvas)
+        pygame.sprite.Group(
+            self.theme, self.message, self.hint, self.found
+            ).draw(self.canvas)
+        pygame.display.update()
+
+
+    def _draw_borders(self) -> None:
+        """ draw borders """
+        _, xb, yb = self.adjustments
+        w, h = self.canvas.get_size()
+        pygame.draw.rect(
+            self.canvas,
+            SELECT_COLOR,
+            pygame.Rect(0, 0, w, yb)
+            )
+        pygame.draw.rect(
+            self.canvas,
+            SELECT_COLOR,
+            pygame.Rect(0, 0, xb, h)
+            )
+        pygame.draw.rect(
+            self.canvas,
+            SELECT_COLOR,
+            pygame.Rect(0, h - yb, w, yb)
+            )
+        pygame.draw.rect(
+            self.canvas,
+            SELECT_COLOR,
+            pygame.Rect(w - xb, 0, xb, h)
+            )
 
 
     def _update_hint_letters(self) -> None:
         """ update hint letters """
-        # TODO
-
-
-    def _update_found_letters(self) -> None:
-        """ update found letters """
-        # TODO
+        # TODO: not required for milestone 1
 
 
     def _connect(
@@ -563,4 +789,7 @@ class StrandGUI():
         color: pygame.Color
         ) -> None:
         """ connect a strand """
-        # TODO
+        # TODO: not required for milestone 1
+
+if __name__ == "__main__":
+    StrandGUI("boards/cs-142", False).play()
