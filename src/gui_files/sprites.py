@@ -151,6 +151,8 @@ class Text(pygame.sprite.Sprite):
     def render(self) -> None:
         """ update the image """
         Text._initify(self)
+        if self.border:
+            Text._bordify(self)
         Text._textify(self)
 
 
@@ -162,8 +164,8 @@ class Letter(Text):
     # rect: pygame.Rect
     # text: str
     # color: pygame.Color
-    highlight_primary: pygame.Color | None
-    highlight_secondary: pygame.Color | None
+    highlight1: pygame.Color | None
+    highlight2: pygame.Color | None
     position: PosBase
 
 
@@ -179,8 +181,8 @@ class Letter(Text):
                 object."
                 )
         self.position = pos
-        self.highlight_primary = None
-        self.highlight_secondary = None
+        self.highlight1 = None
+        self.highlight2 = None
         self._init = False
         Letter.render(self)
 
@@ -207,10 +209,10 @@ class Letter(Text):
 
     def _highlightify(self) -> None:
         """ highlight a letter """
-        if self.highlight_primary is not None:
-            highlight = self.highlight_primary
-        elif self.highlight_secondary is not None:
-            highlight = self.highlight_secondary
+        if self.highlight1 is not None:
+            highlight = self.highlight1
+        elif self.highlight2 is not None:
+            highlight = self.highlight2
         else:
             highlight = None
         if highlight is not None:
@@ -220,6 +222,17 @@ class Letter(Text):
                 self.image.get_rect().center,
                 1/2 * ELEMENT_BUFFER * min(self.rect.size)
                 )
+
+
+    def _bordify(self) -> None:
+        """ draw a border """
+        pygame.draw.circle(
+            self.image,
+            self.color,
+            self.image.get_rect().center,
+            1/2 * ELEMENT_BUFFER * max(self.rect.size),
+            2
+            )
 
 
     def render(self) -> None:
@@ -240,7 +253,7 @@ class Meter(Text):
     # text: str
     # color: pygame.Color
     textform: str | None
-    progress: int
+    meter: int
     threshold: int
     use_bar: bool
 
@@ -279,33 +292,31 @@ class Meter(Text):
             field for _, field, _, _
             in Formatter().parse(text)
             )
-        if parameters == {'progress', 'threshold'}:
+        if parameters == {'meter', 'threshold'}:
             self.textform = text
         else:
             self.textform = None
 
-        Meter.reprogress(self, 0)
+        Meter.remeter(self, 0)
 
         self._init = False
         Meter.render(self)
 
 
-    def reprogress(self, progress: int) -> None:
+    def remeter(self, meter: int) -> None:
         """
         update the progress
 
-        If the argument `progress` is greater than
-        self.threshold, then self.progress is updated
+        If the argument `meter` is greater than
+        self.threshold, then self.meter is updated
         to match the threshold.
         """
-        assert isinstance(progress, int) \
-            and progress >= 0, \
-            "The argument `progress` must be a \
-            nonnegative integer."
-        self.progress = min(progress, self.threshold)
+        assert isinstance(meter, int), \
+            "The argument `progress` must be an integer."
+        self.meter = max(min(meter, self.threshold), 0)
         if self.textform is not None:
             self.retext(self.textform.format(
-                progress = self.progress,
+                meter = self.meter,
                 threshold = self.threshold
             ))
         if not self._init:
@@ -331,9 +342,7 @@ class Meter(Text):
         pygame.draw.rect(
             self.image,
             set_alpha(self.color, 128),
-            rect.scale_by(
-                self.progress / self.threshold, 1
-                ),
+            rect.scale_by(self.meter / self.threshold, 1),
             border_top_left_radius = border_radius,
             border_bottom_left_radius = border_radius
             )

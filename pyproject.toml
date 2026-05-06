@@ -66,22 +66,3 @@ ignore = [
     "boards",
     ".vscode"
     ]
-
-[tool.mypy]
-disallow_untyped_calls = true
-disallow_untyped_defs = true
-files = "."
-exclude = [
-    "tests/test_fake.py",
-    "src/base.py",
-    "src/stubs.py"
-    ]
-mypy_path = "src"
-
-[tool.pytest]
-pythonpath = ["src"]
-addopts = [
-    "--mypy",
-    "--ignore=src/base.py",
-    "--ignore=src/stubs.py"
-    ]

@@ -4,37 +4,20 @@ Strands GUI Implementation
 # Amber
 
 import sys
-from typing import TypeAlias, Callable, Any
-from functools import wraps
 import pygame
 from base import (
-    StrandBase, StrandsGameBase
+    StrandBase, StrandsGameBase, PosBase
     )
-from stubs import PosStub as Pos
 from stubs import StrandsGameStub as StrandsGame
+from finals.strand import Strand
+from finals.pos import Pos
 from gui_files.sprites import Text, Letter, Meter
 from gui_files.settings import (
-    HINT_THRESHOLD, CAPTION, FRAME_RATE, CANVAS_SIZE,
-    GRID_SIZE, HEADER, FOOTER, BORDER,
-    CANVAS_COLOR, TEXT_COLOR, SELECT_COLOR, FOUND_COLOR
+    HINT_THRESHOLD, CAPTION, FRAME_RATE,
+    CANVAS_SIZE, GRID_SIZE, HEADER, FOOTER, BORDER,
+    CANVAS_COLOR, TEXT_COLOR, SELECT_COLOR,
+    HINT_COLOR, FOUND_COLOR
     )
-
-Noner: TypeAlias = Callable[..., None]
-
-
-def disable(function: Noner) -> Noner:
-    """ disable functions if the game is over """
-    @wraps(function)
-    def wrapper(
-        self: 'StrandGUI',
-        *args: Any,
-        **kwargs: Any
-        ) -> None:
-        """ disable wrapper """
-        if self.game.game_over():
-            return None
-        return function(self, *args, **kwargs)
-    return wrapper
 
 
 class StrandGUI():
@@ -49,7 +32,7 @@ class StrandGUI():
 
     # Game
     game: StrandsGameBase
-    selected: StrandBase | None
+    select: StrandBase | None
     ## Visual Game Elements
     letters: pygame.sprite.Group
     hint: Meter | Text
@@ -69,56 +52,65 @@ class StrandGUI():
                 load the game as solved. If True, the game
                 will show the solutions.
         """
+        if not isinstance(mode, bool):
+            raise TypeError(
+                "The argument `mode` must be boolean."
+                )
 
-        assert isinstance(mode, bool), \
-            "The argument `mode` must be boolean."
         self.game = StrandsGame(game_file, HINT_THRESHOLD)
-        self.selected = None
+        self.select = None
 
         pygame.init()
         pygame.display.set_caption(CAPTION)
         self.canvas = pygame.display.set_mode(
-            self._size(True),
+            self._size(),
             pygame.RESIZABLE
             )
-        self._generate_elements()
         self.clock = pygame.time.Clock()
 
+        self._generate_elements()
         if mode:
             for _, strand in self.game.answers():
-                self.selected = strand
+                self.select = strand
                 self._submit()
 
 
-    def _size(self, init: bool = False) -> tuple[int, int]:
-        """ scale the window for the board """
-        rows = self.game.board().num_rows()
-        cols = self.game.board().num_cols()
-        w = round(cols * GRID_SIZE + 2 * BORDER)
-        h = round(
-            rows * GRID_SIZE + 2 * BORDER + HEADER + FOOTER
-            )
-        min_width, min_height = CANVAS_SIZE
-        if w < min_width and h < min_height:
-            self._resize(min_width, min_height, init)
-            return CANVAS_SIZE
-        else:
-            self._resize(w, h, init)
-            return (w, h)
-
-
-    def _resize(
-        self,
-        w: int,
-        h: int,
-        init: bool = False
-        ) -> None:
-        """ scale the board for the window """
+    def _size(self) -> tuple[int, int]:
+        """ scale the canvas for the board """
         rows = self.game.board().num_rows()
         cols = self.game.board().num_cols()
         board_width = cols * GRID_SIZE
         board_height = rows * GRID_SIZE + HEADER + FOOTER
+        canvas_width = board_width + 2 * BORDER
+        canvas_height = board_height + 2 * BORDER
+        min_width, min_height = CANVAS_SIZE
+        if (
+            canvas_width > min_width
+            or canvas_height > min_height
+            ):
+            self.adjustments = (1, BORDER, BORDER)
+            return (canvas_width, canvas_height)
+        if rows > 0 and cols > 0:
+            a = min(
+                ((min_width - 2 * BORDER) / board_width),
+                ((min_height - 2 * BORDER) / board_height)
+                )
+        else:
+            a = 0
+        self.adjustments = (
+            a,
+            round((min_width - board_width * a) / 2),
+            round((min_height - board_height * a) / 2)
+            )
+        return (min_width, min_height)
 
+
+    def _resize(self, w: int, h: int) -> None:
+        """ scale the board for the canvas """
+        rows = self.game.board().num_rows()
+        cols = self.game.board().num_cols()
+        board_width = cols * GRID_SIZE
+        board_height = rows * GRID_SIZE + HEADER + FOOTER
         if rows > 0 and cols > 0:
             a = min(
                 ((w - 2 * BORDER) / board_width),
@@ -126,25 +118,21 @@ class StrandGUI():
                 )
         else:
             a = 0
-
         xb = round((w - board_width * a) / 2)
         yb = round((h - board_height * a) / 2)
-
         self.adjustments = (a, xb, yb)
-        if not init:
-            self._update_elements()
+        self._update_elements()
+        self._render()
 
 
     def _generate_elements(self) -> None:
         """ generate all visual game elements """
         a, xb, yb = self.adjustments
-        rows = self.game.board().num_rows()
-        cols = self.game.board().num_cols()
 
         # generate letters
         self.letters = pygame.sprite.Group()
-        for i in range(rows):
-            for j in range(cols):
+        for i in range(self.game.board().num_rows()):
+            for j in range(self.game.board().num_cols()):
                 pos = Pos(i, j)
                 self.letters.add(Letter(
                     pos,
@@ -168,7 +156,7 @@ class StrandGUI():
         y = round(canvas_h - yb - a * FOOTER)
         h = round(FOOTER * a)
         if self.game.hint_threshold() == 0:
-            self.hint = Text("HINT", (xb, y, w, h))
+            self.hint = Text("HINT", (xb, y, w, h), True)
         else:
             self.hint = Meter(
                 "HINT",
@@ -176,13 +164,12 @@ class StrandGUI():
                 self.game.hint_threshold(),
                 True
                 )
-        self.hint.border = True
         self.hint.render()
         if len(self.game.answers()) == 0:
             self.found = Text("Found?", (xb + w, y, w, h))
         else:
             self.found = Meter(
-                "Found {progress}/{threshold}",
+                "Found {meter}/{threshold}",
                 (xb + w, y, w, h),
                 len(self.game.answers())
                 )
@@ -199,9 +186,11 @@ class StrandGUI():
 
 
     def _update_elements(self) -> None:
-        """ update all visual game elements """
-        a, xb, yb = self.adjustments
+        """
+        update all visual game elements after a resizing
+        """
 
+        a, xb, yb = self.adjustments
         # update letters
         self.letters.update(
             xb,
@@ -209,7 +198,6 @@ class StrandGUI():
             round(a * GRID_SIZE),
             round(a * GRID_SIZE)
             )
-
         # update texts
         canvas_w, canvas_h = self.canvas.get_size()
         max_w = round(1/2 * (canvas_w - 2 * xb))
@@ -228,24 +216,24 @@ class StrandGUI():
 
     def play(self) -> None:
         """ Event Loop """
+        self._render()
+        held = False
         dragging = False
         while True:
             events = pygame.event.get()
             for event in events:
                 if event.type == pygame.QUIT:
                     self._quit()
-
                 elif event.type == pygame.KEYDOWN:
                     self._keydown(event.key)
-
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                    dragging = True
-                    self._selecting(*event.pos)
-
+                    held = True
                 elif (
-                    dragging and
-                    event.type == pygame.MOUSEMOTION
+                    held
+                    and event.type == pygame.MOUSEMOTION
+                    and any(abs(n) > 2 for n in event.rel)
                     ):
+                    dragging = True
                     self._selecting(*event.pos)
 
                 elif event.type == pygame.MOUSEBUTTONUP:
@@ -254,11 +242,9 @@ class StrandGUI():
                     else:
                         self._click(*event.pos)
                     dragging = False
-
+                    held = False
                 elif event.type == pygame.VIDEORESIZE:
                     self._resize(*event.size)
-
-            self._draw()
             self.clock.tick(FRAME_RATE)
 
 
@@ -268,81 +254,126 @@ class StrandGUI():
         sys.exit()
 
 
-    @disable
     def _submit(self) -> None:
         """ submit a strand """
         # WARNING: commented out for milestone 1
         # if (
-        #     self.selected is None
-        #     or not self.selected.steps
+        #     self.game.game_over()
+        #     or self.select is None
+        #     or not self.select.steps
         #     ):
         #     return
 
         # WARNING: Remove mypy override after milestone 1
-        info = self.game.submit_strand(self.selected) # type: ignore
+        info = self.game.submit_strand(self.select) # type: ignore
         if isinstance(info, str):
             self.message.retext(info, TEXT_COLOR)
         else:
             word, theme = info
             if theme:
-                self._found_theme(word)
+                strand = self.game.found_strands()[-1]
+                self.message.retext(word, FOUND_COLOR)
+                if isinstance(self.found, Meter):
+                    self.found.remeter(
+                        len(self.game.found_strands())
+                        )
+                positions = strand.positions()
+                for letter in self.letters:
+                    if letter.position in positions:
+                        letter.highlight2 = FOUND_COLOR
+                        letter.border = False
+                        letter.render()
             else:
-                self._found_other(word)
+                self.message.retext(word, SELECT_COLOR)
+                if isinstance(self.hint, Meter):
+                    self.hint.remeter(
+                        self.game.hint_meter()
+                        )
         self._deselect()
-
         if self.game.game_over():
             self.message.retext("You won!", TEXT_COLOR)
 
 
-    def _found_theme(self, word: str) -> None:
-        """ found a theme word """
-        strand = self.game.found_strands()[-1]
-        self.message.retext(word, FOUND_COLOR)
-        if isinstance(self.found, Meter):
-            self.found.reprogress(self.found.progress + 1)
-        positions = strand.positions()
-        for letter in self.letters:
-            if letter.position in positions:
-                letter.highlight_secondary = FOUND_COLOR
-                letter.render()
-
-
-    def _found_other(self, word: str) -> None:
-        """ found a non-theme word """
-        self.message.retext(word, SELECT_COLOR)
-        if isinstance(self.hint, Meter):
-            self.hint.reprogress(self.game.hint_meter())
-
-
-    @disable
     def _hint(self) -> None:
-        """ use a hint if possible """
+        """ use a hint """
+        if self.game.game_over():
+            return
         info = self.game.use_hint()
         if isinstance(info, str):
             self.message.retext(info, TEXT_COLOR)
         else:
-            self._update_hint_letters()
-            if not isinstance(self.hint, Meter):
-                return
-            self.hint.reprogress(self.game.hint_meter())
+            i, b = info
+            # WARNING: Change int(i) to i after milestone 1
+            _, strand = self.game.answers()[int(i)]
+            positions = strand.positions()
+            first_last = (positions[0], positions[-1])
+            for letter in self.letters:
+                if letter.position in positions:
+                    letter.highlight2 = HINT_COLOR
+                    if b and letter.position in first_last:
+                        letter.border = True
+                    letter.render()
+            if isinstance(self.hint, Meter):
+                self.hint.remeter(self.game.hint_meter())
 
 
     def _deselect(self) -> None:
         """ deselect a strand """
-        self.selected = None
+        if self.game.game_over() or self.select is None:
+            return
+        positions = self.select.positions()
         for letter in self.letters:
-            letter.highlight_primary = None
-            letter.render()
+            if letter.position in positions:
+                letter.highlight1 = None
+                letter.render()
+        self.select = None
 
 
-    @disable
     def _select(
         self,
-        letter: Letter,
+        pos: PosBase,
         dragging: bool
         ) -> None:
-        """ select the letter given """
-        # TODO: not required for milestone 1
+        """
+        interact with the letter at the given position
+        """
+        if self.game.game_over():
+            return
+
+        # save old selection and wipe
+        old = self.select
+        self._deselect()
+
+        # update selection
+        new: StrandBase | None = None
+        if old is None:
+            new = Strand(pos, [])
+        else:
+            *positions, last = old.positions()
+            if pos == last:
+                if dragging:
+                    new = old
+                else:
+                    self._submit()
+            elif pos in positions:
+                i = positions.index(pos)
+                new = Strand(old.start, old.steps[:i])
+            elif pos.is_adjacent_to(last):
+                new = Strand(
+                    old.start,
+                    old.steps + [last.step_to(pos)]
+                    )
+            else:
+                self._submit()
+        self.select = new
+
+        # update letter sprites
+        if new is not None:
+            positions = new.positions()
+            for letter in self.letters:
+                if letter.position in positions:
+                    letter.highlight1 = SELECT_COLOR
+                    letter.render()
 
 
     def _keydown(self, key: int) -> None:
@@ -355,38 +386,50 @@ class StrandGUI():
             self._deselect()
         elif key == pygame.K_h:
             self._hint()
+        self._render()
 
 
     def _click(self, x: int, y: int) -> None:
         """ process a mouse click at the position given """
         if self.hint.rect.collidepoint(x, y):
             self._hint()
-        # TODO: not required for milestone 1
-        #       handle selecting vs submitting logic
+        for letter in self.letters:
+            if letter.rect.collidepoint(x, y):
+                self._select(letter.position, False)
+                break
+        self._render()
 
 
     def _selecting(self, x: int, y: int) -> None:
         """
         process mouse dragging at the position given
         """
-        # TODO: not required for milestone 1
+        for letter in self.letters:
+            if letter.rect.collidepoint(x, y):
+                self._select(letter.position, True)
+                break
+        self._render()
 
 
     def _selected(self) -> None:
         """
         process the end of mouse dragging
         """
-        # TODO: not required for milestone 1
+        self._submit()
+        self._render()
 
 
-    def _draw(self) -> None:
-        """ draw the display """
+    def _render(self) -> None:
+        """ render the display """
         self.canvas.fill(CANVAS_COLOR)
         self._draw_borders()
         for strand in self.game.found_strands():
-            self._connect(strand, FOUND_COLOR)
-        if self.selected is not None:
-            self._connect(self.selected, SELECT_COLOR)
+            self._connect(strand.positions(), FOUND_COLOR)
+        if self.select is not None:
+            self._connect(
+                self.select.positions(),
+                SELECT_COLOR
+                )
         self.letters.draw(self.canvas)
         pygame.sprite.Group(
             self.theme, self.message, self.hint, self.found
@@ -420,15 +463,23 @@ class StrandGUI():
             )
 
 
-    def _update_hint_letters(self) -> None:
-        """ update hint letters """
-        # TODO: not required for milestone 1
-
-
     def _connect(
         self,
-        strand: StrandBase,
+        positions: list[PosBase],
         color: pygame.Color
-        ) -> None:
-        """ connect a strand """
-        # TODO: not required for milestone 1
+        ) -> tuple[int, int]:
+        """ connect a list of positions on the board """
+        if len(positions) == 1:
+            for letter in self.letters:
+                if letter.position == positions[0]:
+                    return letter.rect.center
+        start = self._connect(positions[:-1], color)
+        stop = self._connect(positions[-1:], color)
+        pygame.draw.line(
+            self.canvas,
+            color,
+            start,
+            stop,
+            round(1/3 * self.adjustments[0] * GRID_SIZE)
+            )
+        return stop
