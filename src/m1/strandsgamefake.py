@@ -6,7 +6,7 @@ StrandsGameFake Class Implementation
 from base import StrandsGameBase, BoardBase, StrandBase, Step
 from finals.pos import Pos
 from finals.strand import Strand as StrandFake
-from m1.boardfake import BoardFake
+from finals.board import Board as BoardFake
 
 class StrandsGameFake(StrandsGameBase):
     """
@@ -134,7 +134,9 @@ class StrandsGameFake(StrandsGameBase):
             tokens = answer_line.split()
 
             if len(tokens) < 3:
-                raise ValueError("Answer line must include word, row, and column")
+                raise ValueError(
+                    "Answer line must include word, row, and column"
+                    )
 
             word = tokens[0].lower()
             row = int(tokens[1]) - 1

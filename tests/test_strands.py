@@ -318,7 +318,7 @@ def test_play_game_sleep_tight_once() -> None:
     answers = sleep_tight_answers()
 
     assert not game.game_over()
-    assert game.found_strands() == []
+    assert not game.found_strands()
 
     first_word, first_strand = answers[0]
     assert game.submit_strand(first_strand) == (first_word, True)

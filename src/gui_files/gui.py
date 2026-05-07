@@ -33,8 +33,9 @@ class StrandGUI():
     # Game
     game: StrandsGameBase
     select: StrandBase | None
-    ## Visual Game Elements
+    ## Sprites
     letters: pygame.sprite.Group
+    letters_lookup: dict[tuple[int, int], Letter]
     hint: Meter | Text
     message: Text
     found: Meter | Text
@@ -126,15 +127,16 @@ class StrandGUI():
 
 
     def _generate_elements(self) -> None:
-        """ generate all visual game elements """
+        """ generate all sprites """
         a, xb, yb = self.adjustments
 
         # generate letters
+        self.letters_lookup = {}
         self.letters = pygame.sprite.Group()
         for i in range(self.game.board().num_rows()):
             for j in range(self.game.board().num_cols()):
                 pos = Pos(i, j)
-                self.letters.add(Letter(
+                letter = Letter(
                     pos,
                     self.game.board().get_letter(pos),
                     (
@@ -146,7 +148,9 @@ class StrandGUI():
                         round(a * GRID_SIZE),
                         round(a * GRID_SIZE)
                         )
-                    ))
+                    )
+                self.letters.add(letter)
+                self.letters_lookup[(i, j)] = letter
 
         # generate texts
         canvas_w, canvas_h = self.canvas.get_size()
@@ -187,7 +191,7 @@ class StrandGUI():
 
     def _update_elements(self) -> None:
         """
-        update all visual game elements after a resizing
+        update all sprites after a resizing
         """
 
         a, xb, yb = self.adjustments
@@ -256,7 +260,7 @@ class StrandGUI():
 
     def _submit(self) -> None:
         """ submit a strand """
-        # WARNING: commented out for milestone 1
+        # NOTE: commented out for milestone 1
         # if (
         #     self.game.game_over()
         #     or self.select is None
@@ -264,7 +268,7 @@ class StrandGUI():
         #     ):
         #     return
 
-        # WARNING: Remove mypy override after milestone 1
+        # NOTE: Remove mypy override after milestone 1
         info = self.game.submit_strand(self.select) # type: ignore
         if isinstance(info, str):
             self.message.retext(info, TEXT_COLOR)
@@ -277,12 +281,12 @@ class StrandGUI():
                     self.found.remeter(
                         len(self.game.found_strands())
                         )
-                positions = strand.positions()
-                for letter in self.letters:
-                    if letter.position in positions:
-                        letter.highlight2 = FOUND_COLOR
-                        letter.border = False
-                        letter.render()
+                for pos in strand.positions():
+                    position = (pos.r, pos.c)
+                    letter = self.letters_lookup[position]
+                    letter.highlight2 = FOUND_COLOR
+                    letter.border = False
+                    letter.render()
             else:
                 self.message.retext(word, SELECT_COLOR)
                 if isinstance(self.hint, Meter):
@@ -303,16 +307,17 @@ class StrandGUI():
             self.message.retext(info, TEXT_COLOR)
         else:
             i, b = info
-            # WARNING: Change int(i) to i after milestone 1
+            # NOTE: Change int(i) to i after milestone 1
             _, strand = self.game.answers()[int(i)]
             positions = strand.positions()
             first_last = (positions[0], positions[-1])
-            for letter in self.letters:
-                if letter.position in positions:
-                    letter.highlight2 = HINT_COLOR
-                    if b and letter.position in first_last:
-                        letter.border = True
-                    letter.render()
+            for pos in positions:
+                position = (pos.r, pos.c)
+                letter = self.letters_lookup[position]
+                letter.highlight2 = HINT_COLOR
+                if b and pos in first_last:
+                    letter.border = True
+                letter.render()
             if isinstance(self.hint, Meter):
                 self.hint.remeter(self.game.hint_meter())
 
@@ -321,11 +326,11 @@ class StrandGUI():
         """ deselect a strand """
         if self.game.game_over() or self.select is None:
             return
-        positions = self.select.positions()
-        for letter in self.letters:
-            if letter.position in positions:
-                letter.highlight1 = None
-                letter.render()
+        for pos_ in self.select.positions():
+            position = (pos_.r, pos_.c)
+            letter = self.letters_lookup[position]
+            letter.highlight1 = None
+            letter.render()
         self.select = None
 
 
@@ -370,10 +375,11 @@ class StrandGUI():
         # update letter sprites
         if new is not None:
             positions = new.positions()
-            for letter in self.letters:
-                if letter.position in positions:
-                    letter.highlight1 = SELECT_COLOR
-                    letter.render()
+            for pos_ in new.positions():
+                position = (pos_.r, pos_.c)
+                letter = self.letters_lookup[position]
+                letter.highlight1 = SELECT_COLOR
+                letter.render()
 
 
     def _keydown(self, key: int) -> None:
@@ -393,10 +399,11 @@ class StrandGUI():
         """ process a mouse click at the position given """
         if self.hint.rect.collidepoint(x, y):
             self._hint()
-        for letter in self.letters:
-            if letter.rect.collidepoint(x, y):
-                self._select(letter.position, False)
-                break
+        else:
+            for letter in self.letters:
+                if letter.rect.collidepoint(x, y):
+                    self._select(letter.position, False)
+                    break
         self._render()
 
 
@@ -470,9 +477,9 @@ class StrandGUI():
         ) -> tuple[int, int]:
         """ connect a list of positions on the board """
         if len(positions) == 1:
-            for letter in self.letters:
-                if letter.position == positions[0]:
-                    return letter.rect.center
+            position = (positions[0].r, positions[0].c)
+            letter = self.letters_lookup[position]
+            return letter.rect.center
         start = self._connect(positions[:-1], color)
         stop = self._connect(positions[-1:], color)
         pygame.draw.line(

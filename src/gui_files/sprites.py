@@ -71,6 +71,8 @@ class Text(pygame.sprite.Sprite):
                 None,
                 size
                 ).size(self.text)
+            if size <= 0:
+                break
         text = pygame.font.SysFont(None, size).render(
             self.text, True, self.color
             )
@@ -122,6 +124,8 @@ class Text(pygame.sprite.Sprite):
         self.rect.scale_by_ip(
             ELEMENT_BUFFER, ELEMENT_BUFFER
             )
+        self.rect.width = max(self.rect.width, 0)
+        self.rect.height = max(self.rect.height, 0)
         if not self._init:
             Text.render(self)
 
