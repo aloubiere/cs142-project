@@ -16,11 +16,11 @@ class StrandsGameFake(StrandsGameBase):
     _theme: str
     _board: BoardBase
     _answers: list[tuple[str, StrandBase]]
-    _found_words: list[str]
+    _found_indices: list[int]
     _found_strands: list[StrandBase]
-    _hint_threshold_value: int
-    _hint_meter_value: int
-    _active_hint_value: None | tuple[int, bool]
+    _hint_threshold: int
+    _hint_meter: int
+    _active_hint: None | tuple[int, bool]
 
     def __init__(
         self,
@@ -84,9 +84,10 @@ class StrandsGameFake(StrandsGameBase):
 
         self._hint_threshold = hint_threshold
         self._hint_meter = 0
-        self._active_hint = None
-        self._found_indices = []
-        self._found_strands = []
+        self._active_hint: None | tuple[int, bool] = None
+        self._found_indices: list[int] = []
+        self._found_strands: list[StrandBase] = []
+        self._answers: list[tuple[str, StrandBase]] = []
 
         if isinstance(game_file, str):
             with open(game_file, "r", encoding="utf-8") as f:
@@ -119,16 +120,14 @@ class StrandsGameFake(StrandsGameBase):
         letters: list[list[str]] = []
 
         for board_line in sections[1]:
-            row = []
+            board_row: list[str] = []
 
             for token in board_line.split():
-                row.append(token.lower())
+                board_row.append(token.lower())
 
-            letters.append(row)
+            letters.append(board_row)
 
         self._board = BoardFake(letters)
-
-        self._answers = []
 
         for answer_line in sections[2]:
             tokens = answer_line.split()
@@ -139,15 +138,15 @@ class StrandsGameFake(StrandsGameBase):
                     )
 
             word = tokens[0].lower()
-            row = int(tokens[1]) - 1
-            col = int(tokens[2]) - 1
+            answer_row = int(tokens[1]) - 1
+            answer_col = int(tokens[2]) - 1
 
             steps: list[Step] = []
 
             for token in tokens[3:]:
                 steps.append(Step(token.lower()))
 
-            strand = StrandFake(Pos(row, col), steps)
+            strand = StrandFake(Pos(answer_row, answer_col), steps)
 
             if self._board.evaluate_strand(strand) != word:
                 raise ValueError("Answer strand does not spell answer word")
@@ -307,18 +306,24 @@ class StrandsGameFake(StrandsGameBase):
             if there is already an active hint where the
             first and last letters are being displayed.
         """
+        result: tuple[int, bool] | str
+
         if self._active_hint is None:
+            result = "No hint yet"
+
             for i, _ in enumerate(self._answers):
                 if i not in self._found_indices:
                     self._active_hint = (i, False)
-                    return (i, False)
+                    result = (i, False)
+                    break
 
-            return "No hint yet"
+        else:
+            hint_index, show_start_end = self._active_hint
 
-        hint_index, show_start_end = self._active_hint
+            if not show_start_end:
+                self._active_hint = (hint_index, True)
+                result = (hint_index, True)
+            else:
+                result = "Use your current hint"
 
-        if not show_start_end:
-            self._active_hint = (hint_index, True)
-            return (hint_index, True)
-
-        return "Use your current hint"
+        return result
