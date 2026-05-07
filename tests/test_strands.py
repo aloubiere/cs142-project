@@ -201,7 +201,7 @@ def test_load_game_sleep_tight_file() -> None:
     """
     game = StrandsGame("boards/sleep-tight.txt")
 
-    assert game.theme() == "Sleep tight"
+    assert game.theme() == '"Sleep tight"'
     assert game.board().num_rows() == 8
     assert game.board().num_cols() == 6
     assert game.answers() == sleep_tight_answers()
@@ -261,7 +261,7 @@ def test_load_game_sleep_tight_variations() -> None:
     for lines in [normal_lines, extra_spacing_lines, capitalization_lines]:
         game = StrandsGame(lines)
 
-        assert game.theme() == "Sleep tight"
+        assert game.theme() == '"Sleep tight"'
         assert game.board().num_rows() == 8
         assert game.board().num_cols() == 6
         assert game.answers() == sleep_tight_answers()
