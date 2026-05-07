@@ -22,23 +22,24 @@ class Pos(PosBase):
         the current position and taking the specified step.
         """
         if step == Step.N:
-            return Pos(self.r - 1, self.c)
+            result = Pos(self.r - 1, self.c)
         elif step == Step.S:
-            return Pos(self.r + 1, self.c)
+            result = Pos(self.r + 1, self.c)
         elif step == Step.E:
-            return Pos(self.r, self.c + 1)
+            result = Pos(self.r, self.c + 1)
         elif step == Step.W:
-            return Pos(self.r, self.c - 1)
+            result = Pos(self.r, self.c - 1)
         elif step == Step.NE:
-            return Pos(self.r - 1, self.c + 1)
+            result = Pos(self.r - 1, self.c + 1)
         elif step == Step.NW:
-            return Pos(self.r - 1, self.c - 1)
+            result = Pos(self.r - 1, self.c - 1)
         elif step == Step.SE:
-            return Pos(self.r + 1, self.c + 1)
+            result = Pos(self.r + 1, self.c + 1)
         elif step == Step.SW:
-            return Pos(self.r + 1, self.c - 1)
+            result = Pos(self.r + 1, self.c - 1)
         else:
             raise ValueError("Invalid step")
+        return result
 
 
     def step_to(self, other: PosBase) -> Step:
@@ -54,23 +55,24 @@ class Pos(PosBase):
         col_diff = other.c - self.c
 
         if row_diff == -1 and col_diff == 0:
-            return Step.N
+            result = Step.N
         elif row_diff == 1 and col_diff == 0:
-            return Step.S
+            result = Step.S
         elif row_diff == 0 and col_diff == 1:
-            return Step.E
+            result = Step.E
         elif row_diff == 0 and col_diff == -1:
-            return Step.W
+            result = Step.W
         elif row_diff == -1 and col_diff == -1:
-            return Step.NW
+            result = Step.NW
         elif row_diff == -1 and col_diff == 1:
-            return Step.NE
+            result = Step.NE
         elif row_diff == 1 and col_diff == -1:
-            return Step.SW
+            result = Step.SW
         elif row_diff == 1 and col_diff == 1:
-            return Step.SE
+            result = Step.SE
         else:
             raise ValueError("Positions are not adjacent")
+        return result
 
     def is_adjacent_to(self, other: PosBase) -> bool:
         """
