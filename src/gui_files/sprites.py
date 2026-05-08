@@ -27,7 +27,6 @@ def set_alpha(
 class Text(pygame.sprite.Sprite):
     """ class for all text elements in the game """
 
-    _init: bool
     image: pygame.Surface
     rect: pygame.Rect
     text: str
@@ -42,17 +41,14 @@ class Text(pygame.sprite.Sprite):
         border: bool = False
         ) -> None:
         """ constructor """
-        self._init = True
         super().__init__()
         if not isinstance(border, bool):
             raise TypeError(
                 "The argument `border` must be boolean."
                 )
         self.border = border
-        Text.retext(self, text, TEXT_COLOR)
-        Text.resize(self, xywh)
-        self._init = False
-        Text.render(self)
+        self.retext(text, TEXT_COLOR)
+        self.resize(xywh)
 
 
     def _textify(self) -> None:
@@ -117,17 +113,12 @@ class Text(pygame.sprite.Sprite):
                 "The argument `xywh` must be a tuple of 4 \
                 integer."
                 )
-        if self._init:
-            self.rect = pygame.Rect(*xywh)
-        else:
-            self.rect.update(*xywh)
+        self.rect = pygame.Rect(*xywh)
         self.rect.scale_by_ip(
             ELEMENT_BUFFER, ELEMENT_BUFFER
             )
         self.rect.width = max(self.rect.width, 0)
         self.rect.height = max(self.rect.height, 0)
-        if not self._init:
-            Text.render(self)
 
 
     def retext(
@@ -148,22 +139,19 @@ class Text(pygame.sprite.Sprite):
                     pygame.Color object or None."
                     )
             self.color = color
-        if not self._init:
-            Text.render(self)
 
 
     def render(self) -> None:
         """ update the image """
-        Text._initify(self)
+        self._initify()
         if self.border:
-            Text._bordify(self)
-        Text._textify(self)
+            self._bordify()
+        self._textify()
 
 
 class Letter(Text):
     """ class for all letter elements in the game """
 
-    # _init: bool
     # image: pygame.Surface
     # rect: pygame.Rect
     # text: str
@@ -178,7 +166,6 @@ class Letter(Text):
         ) -> None:
         """ constructor """
         super().__init__(ch, xywh)
-        self._init = True
         if not isinstance(pos, PosBase):
             raise TypeError(
                 "The argument `pos` must be a PosBase \
@@ -187,8 +174,6 @@ class Letter(Text):
         self.position = pos
         self.highlight1 = None
         self.highlight2 = None
-        self._init = False
-        Letter.render(self)
 
 
     def update(
@@ -199,16 +184,13 @@ class Letter(Text):
         h: int
         ) -> None:
         """ update the size and/or position """
-        Letter.resize(
-            self,
-            (
-                xb + self.position.c * w,
-                yb + self.position.r * h,
-                w,
-                h
-                )
-            )
-        Letter.render(self)
+        self.resize((
+            xb + self.position.c * w,
+            yb + self.position.r * h,
+            w,
+            h
+            ))
+        self.render()
 
 
     def _highlightify(self) -> None:
@@ -241,17 +223,16 @@ class Letter(Text):
 
     def render(self) -> None:
         """ update the image """
-        Letter._initify(self)
-        Letter._highlightify(self)
+        self._initify()
+        self._highlightify()
         if self.border:
-            Letter._bordify(self)
-        Letter._textify(self)
+            self._bordify()
+        self._textify()
 
 
 class Meter(Text):
     """ class for a meter element in the game """
 
-    # _init: bool
     # image: pygame.Surface
     # rect: pygame.Rect
     # text: str
@@ -271,14 +252,11 @@ class Meter(Text):
         ) -> None:
         """ constructor """
         super().__init__(text, xywh)
-        self._init = True
-
         if not isinstance(use_bar, bool):
             raise TypeError(
                 "The argument `use_bar` must be boolean."
                 )
         self.use_bar = use_bar
-
         if not isinstance(threshold, int):
             raise TypeError(
                 "The argument `threshold` must be a \
@@ -290,8 +268,6 @@ class Meter(Text):
                 positive integer."
                 )
         self.threshold = threshold
-
-
         parameters = set(
             field for _, field, _, _
             in Formatter().parse(text)
@@ -300,11 +276,7 @@ class Meter(Text):
             self.textform = text
         else:
             self.textform = None
-
-        Meter.remeter(self, 0)
-
-        self._init = False
-        Meter.render(self)
+        self.remeter(0)
 
 
     def remeter(self, meter: int) -> None:
@@ -323,18 +295,16 @@ class Meter(Text):
                 meter = self.meter,
                 threshold = self.threshold
             ))
-        if not self._init:
-            Meter.render(self)
 
 
     def render(self) -> None:
         """ update the image """
-        Meter._initify(self)
+        self._initify()
         if self.use_bar:
-            Meter._barify(self)
+            self._barify()
         elif self.border:
-            Meter._bordify(self)
-        Meter._textify(self)
+            self._bordify()
+        self._textify()
 
 
     def _barify(self) -> None:

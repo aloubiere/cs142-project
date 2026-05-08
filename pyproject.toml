@@ -64,5 +64,6 @@ ignore = [
     ".venv",
     "assets",
     "boards",
-    ".vscode"
+    ".vscode",
+    "m1"
     ]

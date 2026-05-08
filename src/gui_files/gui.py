@@ -8,9 +8,7 @@ import pygame
 from base import (
     StrandBase, StrandsGameBase, PosBase
     )
-from stubs import StrandsGameStub as StrandsGame
-from finals.strand import Strand
-from finals.pos import Pos
+from strands import Pos, Strand, Board, StrandsGame
 from gui_files.sprites import Text, Letter, Meter
 from gui_files.settings import (
     HINT_THRESHOLD, CAPTION, FRAME_RATE,
@@ -149,6 +147,7 @@ class StrandGUI():
                         round(a * GRID_SIZE)
                         )
                     )
+                letter.render()
                 self.letters.add(letter)
                 self.letters_lookup[(i, j)] = letter
 
@@ -177,16 +176,19 @@ class StrandGUI():
                 (xb + w, y, w, h),
                 len(self.game.answers())
                 )
+        self.found.render()
         ## generate headers
         h = round(HEADER * a)
         self.theme = Text(
             self.game.theme(),
             (xb, yb, w, h)
             )
+        self.theme.render()
         self.message = Text(
             "Good luck!",
             (xb + w, yb, w, h)
             )
+        self.message.render()
 
 
     def _update_elements(self) -> None:
@@ -210,12 +212,16 @@ class StrandGUI():
         y = round(canvas_h - yb - a * FOOTER)
         h = round(FOOTER * a)
         self.hint.resize((xb, y, w, h ))
+        self.hint.render()
         self.found.resize((xb + w, y, w, h))
+        self.found.render()
         ## update headers
         y = yb
         h = round(HEADER * a)
         self.theme.resize((xb, y, w, h))
+        self.theme.render()
         self.message.resize((xb + w, y, w, h))
+        self.message.render()
 
 
     def play(self) -> None:
@@ -223,6 +229,7 @@ class StrandGUI():
         self._render()
         held = False
         dragging = False
+        interrupt = False
         while True:
             events = pygame.event.get()
             for event in events:
@@ -230,6 +237,7 @@ class StrandGUI():
                     self._quit()
                 elif event.type == pygame.KEYDOWN:
                     self._keydown(event.key)
+                    interrupt = True
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     held = True
                 elif (
@@ -241,12 +249,15 @@ class StrandGUI():
                     self._selecting(*event.pos)
 
                 elif event.type == pygame.MOUSEBUTTONUP:
-                    if dragging:
+                    if interrupt:
+                        pass
+                    elif dragging:
                         self._selected()
                     else:
                         self._click(*event.pos)
                     dragging = False
                     held = False
+                    interrupt = False
                 elif event.type == pygame.VIDEORESIZE:
                     self._resize(*event.size)
             self.clock.tick(FRAME_RATE)
@@ -260,27 +271,33 @@ class StrandGUI():
 
     def _submit(self) -> None:
         """ submit a strand """
-        # NOTE: commented out for milestone 1
-        # if (
-        #     self.game.game_over()
-        #     or self.select is None
-        #     or not self.select.steps
-        #     ):
-        #     return
-
-        # NOTE: Remove mypy override after milestone 1
-        info = self.game.submit_strand(self.select) # type: ignore
+        if (
+            self.game.game_over()
+            or self.select is None
+            or not self.select.steps
+            ):
+            return
+        info = self.game.submit_strand(self.select)
         if isinstance(info, str):
             self.message.retext(info, TEXT_COLOR)
+            self.message.render()
         else:
             word, theme = info
             if theme:
-                strand = self.game.found_strands()[-1]
-                self.message.retext(word, FOUND_COLOR)
+                if self.game.game_over():
+                    self.message.retext(
+                        "You won!",
+                        TEXT_COLOR
+                        )
+                else:
+                    self.message.retext(word, FOUND_COLOR)
+                self.message.render()
                 if isinstance(self.found, Meter):
                     self.found.remeter(
                         len(self.game.found_strands())
                         )
+                    self.found.render()
+                strand = self.game.found_strands()[-1]
                 for pos in strand.positions():
                     position = (pos.r, pos.c)
                     letter = self.letters_lookup[position]
@@ -293,9 +310,8 @@ class StrandGUI():
                     self.hint.remeter(
                         self.game.hint_meter()
                         )
+                    self.found.render()
         self._deselect()
-        if self.game.game_over():
-            self.message.retext("You won!", TEXT_COLOR)
 
 
     def _hint(self) -> None:
@@ -305,10 +321,10 @@ class StrandGUI():
         info = self.game.use_hint()
         if isinstance(info, str):
             self.message.retext(info, TEXT_COLOR)
+            self.message.render()
         else:
             i, b = info
-            # NOTE: Change int(i) to i after milestone 1
-            _, strand = self.game.answers()[int(i)]
+            _, strand = self.game.answers()[i]
             positions = strand.positions()
             first_last = (positions[0], positions[-1])
             for pos in positions:
@@ -320,11 +336,12 @@ class StrandGUI():
                 letter.render()
             if isinstance(self.hint, Meter):
                 self.hint.remeter(self.game.hint_meter())
+                self.hint.render()
 
 
     def _deselect(self) -> None:
         """ deselect a strand """
-        if self.game.game_over() or self.select is None:
+        if self.select is None:
             return
         for pos_ in self.select.positions():
             position = (pos_.r, pos_.c)
@@ -369,7 +386,7 @@ class StrandGUI():
                     old.steps + [last.step_to(pos)]
                     )
             else:
-                self._submit()
+                self._deselect()
         self.select = new
 
         # update letter sprites
