@@ -3,8 +3,8 @@ Strands GUI Implementation
 """
 # Amber
 
-from gui_files.gui import StrandGUI
 from sys import argv
+from gui_files.gui import StrandGUI
 
 if __name__ == "__main__":
     mode: str

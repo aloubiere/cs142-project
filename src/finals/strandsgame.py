@@ -1,7 +1,6 @@
 """
 StrandsGame Class Implementation
 """
-# pylint: disable = duplicate-code
 
 from base import StrandsGameBase, BoardBase, StrandBase
 

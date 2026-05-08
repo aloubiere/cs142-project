@@ -8,7 +8,7 @@ import pygame
 from base import (
     StrandBase, StrandsGameBase, PosBase
     )
-from strands import Pos, Strand, Board, StrandsGame
+from strands import Pos, Strand, StrandsGame
 from gui_files.sprites import Text, Letter, Meter
 from gui_files.settings import (
     HINT_THRESHOLD, CAPTION, FRAME_RATE,
