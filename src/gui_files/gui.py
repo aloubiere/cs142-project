@@ -23,15 +23,14 @@ class StrandGUI():
     GUI for playing Strands
     """
 
-    # Display
+    # Pygame Display
     canvas: pygame.Surface
     adjustments: tuple[float, int, int]
     clock: pygame.time.Clock
 
-    # Game
+    # Game Elements
     game: StrandsGameBase
     select: StrandBase | None
-    ## Sprites
     letters: pygame.sprite.Group
     letters_lookup: dict[tuple[int, int], Letter]
     hint: Meter | Text
@@ -55,10 +54,11 @@ class StrandGUI():
             raise TypeError(
                 "The argument `mode` must be boolean."
                 )
-
+        if not isinstance(game_file, str):
+            raise TypeError(
+                "The argument `game_file` must be a string."
+                )
         self.game = StrandsGame(game_file, HINT_THRESHOLD)
-        self.select = None
-
         pygame.init()
         pygame.display.set_caption(CAPTION)
         self.canvas = pygame.display.set_mode(
@@ -66,7 +66,7 @@ class StrandGUI():
             pygame.RESIZABLE
             )
         self.clock = pygame.time.Clock()
-
+        self.select = None
         self._generate_elements()
         if mode:
             for _, strand in self.game.answers():
@@ -158,7 +158,7 @@ class StrandGUI():
         ## generate footers
         y = round(canvas_h - yb - a * FOOTER)
         h = round(FOOTER * a)
-        if self.game.hint_threshold() == 0:
+        if self.game.hint_threshold() <= 0:
             self.hint = Text("HINT", (xb, y, w, h), True)
         else:
             self.hint = Meter(
@@ -168,7 +168,7 @@ class StrandGUI():
                 True
                 )
         self.hint.render()
-        if len(self.game.answers()) == 0:
+        if len(self.game.answers()) <= 0:
             self.found = Text("Found?", (xb + w, y, w, h))
         else:
             self.found = Meter(
@@ -240,14 +240,15 @@ class StrandGUI():
                     interrupt = True
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     held = True
+                    interrupt = False
                 elif (
                     held
                     and event.type == pygame.MOUSEMOTION
                     and any(abs(n) > 2 for n in event.rel)
                     ):
                     dragging = True
+                    interrupt = False
                     self._selecting(*event.pos)
-
                 elif event.type == pygame.MOUSEBUTTONUP:
                     if interrupt:
                         pass
@@ -271,11 +272,14 @@ class StrandGUI():
 
     def _submit(self) -> None:
         """ submit a strand """
-        if (
-            self.game.game_over()
-            or self.select is None
-            or not self.select.steps
-            ):
+        if self.game.game_over():
+            return
+        if self.select is None:
+            self.message.retext(
+                "Nothing selected",
+                TEXT_COLOR
+                )
+            self.message.render()
             return
         info = self.game.submit_strand(self.select)
         if isinstance(info, str):
@@ -306,11 +310,12 @@ class StrandGUI():
                     letter.render()
             else:
                 self.message.retext(word, SELECT_COLOR)
+                self.message.render()
                 if isinstance(self.hint, Meter):
                     self.hint.remeter(
                         self.game.hint_meter()
                         )
-                    self.found.render()
+                    self.hint.render()
         self._deselect()
 
 
@@ -362,41 +367,42 @@ class StrandGUI():
         if self.game.game_over():
             return
 
-        # save old selection and wipe
-        old = self.select
-        self._deselect()
-
         # update selection
-        new: StrandBase | None = None
-        if old is None:
+        if self.select is None:
             new = Strand(pos, [])
         else:
-            *positions, last = old.positions()
+            *positions, last = self.select.positions()
             if pos == last:
                 if dragging:
-                    new = old
+                    return
+                elif not positions:
+                    new = None
                 else:
                     self._submit()
+                    return
             elif pos in positions:
                 i = positions.index(pos)
-                new = Strand(old.start, old.steps[:i])
+                new = Strand(
+                    self.select.start,
+                    self.select.steps[:i]
+                    )
             elif pos.is_adjacent_to(last):
                 new = Strand(
-                    old.start,
-                    old.steps + [last.step_to(pos)]
+                    self.select.start,
+                    self.select.steps + [last.step_to(pos)]
                     )
             else:
-                self._deselect()
-        self.select = new
+                new = None
 
         # update letter sprites
+        self._deselect()
         if new is not None:
-            positions = new.positions()
             for pos_ in new.positions():
                 position = (pos_.r, pos_.c)
                 letter = self.letters_lookup[position]
                 letter.highlight1 = SELECT_COLOR
                 letter.render()
+        self.select = new
 
 
     def _keydown(self, key: int) -> None:

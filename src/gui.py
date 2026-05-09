@@ -7,12 +7,10 @@ from sys import argv
 from gui_files.gui import StrandGUI
 
 if __name__ == "__main__":
-    mode: str
-    file: str
     match argv:
-        case [_, "play", file]:
+        case [_, "play", str() as file]:
             StrandGUI(file, False).play()
-        case [_, "show", file]:
+        case [_, "show", str() as file]:
             StrandGUI(file, True).play()
         case _:
             raise TypeError("Invalid arguments.")

@@ -312,11 +312,13 @@ class Meter(Text):
         rect = self.image.get_rect().scale_by(
             ELEMENT_BUFFER, ELEMENT_BUFFER
             )
+        fill = rect.scale_by(self.meter / self.threshold, 1)
+        fill.topleft = rect.topleft
         border_radius = round(max(1, min(*rect.size) / 12))
         pygame.draw.rect(
             self.image,
             set_alpha(self.color, 128),
-            rect.scale_by(self.meter / self.threshold, 1),
+            fill,
             border_top_left_radius = border_radius,
             border_bottom_left_radius = border_radius
             )
