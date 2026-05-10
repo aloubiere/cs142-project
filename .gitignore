@@ -171,5 +171,7 @@ cython_debug/
 tests.json
 
 # Amber's Stuff 
-milestone*.pdf
+*.pdf
+*.html
 .vscode/
+demos/
