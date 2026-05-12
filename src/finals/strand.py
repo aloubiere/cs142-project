@@ -1,7 +1,6 @@
 """
 StrandFake Class Implementation
 """
-# Amber
 
 from base import StrandBase, PosBase
 

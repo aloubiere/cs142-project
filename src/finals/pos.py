@@ -1,7 +1,6 @@
 """
 Pos Class Implementation
 """
-# Vedat
 
 from base import PosBase, Step
 

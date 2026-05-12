@@ -1,7 +1,6 @@
 """
 Board Class Implementation
 """
-# Palaash
 
 from base import BoardBase, PosBase, StrandBase
 
@@ -81,10 +80,12 @@ class Board(BoardBase):
         corresponding letters from the board.
 
         Raises ValueError if any of the strand's positions
-        are not within the bounds of the board.
+        are not within the bounds of the board or if the
+        strand is cyclic.
         """
         letters = []
-
+        if strand.is_cyclic():
+            raise ValueError("Strand may not be cyclic.")
         for pos in strand.positions():
             if pos.r < 0 or pos.r >= self.num_rows():
                 raise ValueError("Strand position row is out of bounds")

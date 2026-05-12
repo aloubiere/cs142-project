@@ -1,7 +1,6 @@
 """
 StrandsGame Class Implementation
 """
-# Palaash and Vedat and Amber
 
 from base import (
     Step, PosBase, StrandsGameBase, BoardBase, StrandBase
@@ -75,7 +74,8 @@ class StrandsGame(StrandsGameBase):
               * the position (R, C) is within bounds
                 of the board,
               * the positions implied by the steps are
-                all within bounds of the board, and
+                all within bounds of the board,
+              * the strand is not cyclic, and
               * the letters implied by the strand
                 spell the WORD (modulo capitalization)
               * the WORDs and STEPs may be spelled with
@@ -83,7 +83,7 @@ class StrandsGame(StrandsGameBase):
                 regardless the WORDs are stored in the
                 game object with only lowercase letters.
 
-           - that answers fill the board
+           - that answers fill the board and do not overlap
 
         Game files are allowed to use multiple space
         characters to separate tokens on a line. Also,
@@ -185,7 +185,7 @@ class StrandsGame(StrandsGameBase):
             for pos in strand.positions():
                 if pos not in unused:
                     raise ValueError(
-                        "Answer strands overlap"
+                        "Answer strands reuse positions."
                         )
                 unused.remove(pos)
             self._answers.append((word, strand))
@@ -307,6 +307,8 @@ class StrandsGame(StrandsGameBase):
         ) -> tuple[str, bool] | str:
         """
         Play a selected strand.
+
+        Raises ValueError if the strand is invalid.
 
         Returns (word, True):
             if the strand corresponds to a theme word which
