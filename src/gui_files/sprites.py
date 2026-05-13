@@ -249,25 +249,73 @@ class Letter(Text):
 
     def update(
         self,
-        xb: int,
-        yb: int,
-        spacing: int,
-        size: tuple[int, int]
+        offset: tuple[int, int] | int,
+        spacing: tuple[int, int] | int,
+        size: tuple[int, int] | int
         ) -> None:
         """
         update the size and/or position using the
         `position` attribute
 
+
         Inputs:
-        - xb (int): the new x border
-        - yb (int): the new y border
-        - spacing (int): the new spacing between positions
-        - size (tuple[int, int]): the new width and height
+            offset (int | tuple[int, int]): the new x
+                and y offsets as a tuple of integers in
+                that order or, if both offsets are the
+                same, one integer for both
+            spacing (int | tuple[int, int]): the new x
+                and y spacings between positions as a
+                tuple of integers in that order, or, if
+                both spacings are the same, one integer
+                for both
+            size (int | tuple[int, int]): the new width
+                and height values as a tuple of integers
+                in that order, or, if both values are the
+                same, one integer for both
         """
+        if (
+            isinstance(offset, tuple)
+            and len(offset) == 2
+            and all(isinstance(n, int) for n in offset)
+            ):
+            xb, yb = offset
+        elif isinstance(offset, int):
+            xb = yb = offset
+        else:
+            raise ValueError(
+                "The argument `offset` must be an "
+                "integer or a tuple of two integers."
+                )
+        if (
+            isinstance(spacing, tuple)
+            and len(spacing) == 2
+            and all(isinstance(n, int) for n in spacing)
+            ):
+            sx, sy = spacing
+        elif isinstance(spacing, int):
+            sx = sy = spacing
+        else:
+            raise ValueError(
+                "The argument `spacing` must be an "
+                "integer or a tuple of two integers."
+                )
+        if (
+            isinstance(size, tuple)
+            and len(size) == 2
+            and all(isinstance(n, int) for n in size)
+            ):
+            w, h = size
+        elif isinstance(size, int):
+            w = h = size
+        else:
+            raise ValueError(
+                "The argument `size` must be an "
+                "integer or a tuple of two integers."
+                )
         self.resize(Specs(
-            round(xb + (self.position.c + 1/2) * spacing),
-            round(yb + (self.position.r + 1/2) * spacing),
-            *size
+            round(xb + (self.position.c + 1/2) * sx),
+            round(yb + (self.position.r + 1/2) * sy),
+            w, h
             ))
         self.render()
 
@@ -456,13 +504,21 @@ class Meter(Text):
         fill = rect.scale_by(self.meter / self.threshold, 1)
         fill.topleft = rect.topleft
         border_radius = round(max(1, min(*rect.size) / 12))
-        pygame.draw.rect(
-            self.image,
-            set_alpha(self.color, 128),
-            fill,
-            border_top_left_radius = border_radius,
-            border_bottom_left_radius = border_radius
-            )
+        if self.meter == self.threshold:
+            pygame.draw.rect(
+                self.image,
+                set_alpha(self.color, 128),
+                fill,
+                border_radius = border_radius
+                )
+        else:
+            pygame.draw.rect(
+                self.image,
+                set_alpha(self.color, 128),
+                fill,
+                border_top_left_radius = border_radius,
+                border_bottom_left_radius = border_radius
+                )
         pygame.draw.rect(
             self.image,
             self.color,

@@ -45,7 +45,7 @@ class StrandGUI():
 
     # (scaling factor, x border, y border)
     # for sizing and positioning adjustments of the board
-    _adjustments: Adjustments
+    _adj: Adjustments
 
     # used to maintain frame rate
     _clock: pygame.time.Clock
@@ -148,16 +148,14 @@ class StrandGUI():
             canvas_width > min_width
             or canvas_height > min_height
             ):
-            self._adjustments = Adjustments(
-                1, BORDER, BORDER
-                )
+            self._adj = Adjustments(1, BORDER, BORDER)
             return (canvas_width, canvas_height)
         a = min(
             ((min_width - 2 * BORDER) / board_width),
             ((min_height - 2 * BORDER) / board_height)
             )
         a = max(a, 0)
-        self._adjustments = Adjustments(
+        self._adj = Adjustments(
             a,
             round((min_width - board_width * a) / 2),
             round((min_height - board_height * a) / 2)
@@ -201,7 +199,7 @@ class StrandGUI():
         a = max(a, 0)
         xb = round((w - board_width * a) / 2)
         yb = round((h - board_height * a) / 2)
-        self._adjustments = Adjustments(a, xb, yb)
+        self._adj = Adjustments(a, xb, yb)
         self._update_sprites()
         self._render()
 
@@ -210,7 +208,7 @@ class StrandGUI():
         """ generate all sprites """
 
         # generate letters
-        a, xb, yb = self._adjustments
+        a, xb, yb = self._adj
         self._letters_lookup = {}
         self._letters = pygame.sprite.Group()
         grid = a * GRID_SIZE
@@ -269,13 +267,13 @@ class StrandGUI():
         Returns (InfoSpecs):
         - The sizes and positions for the info sprites
         """
-        a, xb, yb = self._adjustments
+        a, xb, yb = self._adj
         canvas_w, canvas_h = self._canvas.get_size()
 
         # shared values
         max_w = max(1/2 * (canvas_w - 2 * xb), 0)
-        left_x = round(xb + 3/2 * max_w)
-        right_x = round(xb + 1/2 * max_w)
+        left_x = round(xb + 1/2 * max_w)
+        right_x = round(xb + 3/2 * max_w)
         # header-specific
         header_h = a * HEADER
         header_y = round(yb + 1/2 * header_h)
@@ -302,12 +300,11 @@ class StrandGUI():
     def _update_sprites(self) -> None:
         """ update all sprites after a resizing """
         # update letters
-        a, xb, yb = self._adjustments
+        a, xb, yb = self._adj
         self._letters.update(
-            xb,
-            round(yb + a * HEADER),
+            (xb, round(yb + a * HEADER)),
             round(a * GRID_SIZE),
-            (round(ELEMENT_BUFFER * a * GRID_SIZE),) * 2,
+            round(ELEMENT_BUFFER * a * GRID_SIZE)
             )
         # update info sprites
         specs = self._spec_info()
@@ -591,7 +588,7 @@ class StrandGUI():
 
     def _draw_borders(self) -> None:
         """ draw borders """
-        _, xb, yb = self._adjustments
+        _, xb, yb = self._adj
         w, h = self._canvas.get_size()
         pygame.draw.rect(
             self._canvas,
@@ -629,7 +626,7 @@ class StrandGUI():
             color (pygame.Color): the color to draw the
                 connections with
         """
-        radius = round(self._adjustments[0]/3 * GRID_SIZE)
+        radius = round(self._adj.a/3 * GRID_SIZE)
         def __connect(
             positions: list[PosBase]
             ) -> tuple[int, int]:
