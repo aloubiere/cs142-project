@@ -305,19 +305,6 @@ def format_hint(result: tuple[int, bool] | str) -> str:
     return "Hint: endpoints shown!" if show_ends else "Hint active!"
 
 
-def _is_partial_answer(
-    selection: list[PosBase],
-    game: StrandsGameBase,
-) -> bool:
-    """Return True if selection is a strict subset of any answer strand."""
-    submitted = {(p.r, p.c) for p in selection}
-    for _, ans_strand in game.answers():
-        ans_pos = {(p.r, p.c) for p in ans_strand.positions()}
-        if submitted < ans_pos:
-            return True
-    return False
-
-
 def _handle_enter(
     game: StrandsGameBase,
     cursor: PosBase,
@@ -326,8 +313,17 @@ def _handle_enter(
     """Handle Enter: start selection at cursor or submit strand."""
     if not selection:
         return cursor, [cursor], None, ""
-    if _is_partial_answer(selection, game):
-        return cursor, selection, None, "Keep selecting..."
+    submitted = {(p.r, p.c) for p in selection}
+    start = (selection[0].r, selection[0].c)
+    for _, ans_strand in game.answers():
+        if (ans_strand.start.r, ans_strand.start.c) != start:
+            continue
+        ans_pos = {(p.r, p.c) for p in ans_strand.positions()}
+        if submitted < ans_pos:
+            return cursor, selection, None, "Keep selecting..."
+        if submitted != ans_pos:
+            return cursor, [], None, "Wrong word"
+        break
     strand = selection_to_strand(selection)
     result = game.submit_strand(strand)
     if isinstance(result, tuple):
@@ -362,7 +358,10 @@ def handle_key(
             game, cursor, selection
         )
     elif key == ord('h'):
-        new_status = format_hint(game.use_hint())
+        if game.hint_meter() >= game.hint_threshold():
+            new_status = format_hint(game.use_hint())
+        else:
+            new_status = "No hint yet"
     elif key in SHIFT_PENDING:
         new_pending = SHIFT_PENDING[key]
     else:
@@ -406,6 +405,7 @@ def main(stdscr: curses.window) -> None:
     curses.start_color()
     curses.use_default_colors()
     curses.curs_set(0)
+    curses.set_escdelay(25)
     for i, color in enumerate(STRAND_COLORS):
         curses.init_pair(i + 1, color, -1)
     curses.init_pair(PAIR_SELECTION, curses.COLOR_WHITE, -1)
