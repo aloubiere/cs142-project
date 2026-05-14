@@ -22,7 +22,7 @@ STRAND_COLORS = [
 CELL_WIDTH = 3
 ROW_HEIGHT = 2
 BOARD_START_ROW = 4
-NAV_RULES = "Nav: arrows=NSEW  Shift+Up then Shift+Left/Right=NW/NE  Shift+Down=SW/SE"
+NAV_RULES = "Nav: arrows=NSEW  Shift+Up+Left/Right=NW/NE  Shift+Down=SW/SE"
 CONTROLS = "[q] Quit  [Enter] Select/Submit  [h] Hint  [Esc] Clear"
 NUM_COLORS = len(STRAND_COLORS)
 
@@ -305,6 +305,19 @@ def format_hint(result: tuple[int, bool] | str) -> str:
     return "Hint: endpoints shown!" if show_ends else "Hint active!"
 
 
+def _is_partial_answer(
+    selection: list[PosBase],
+    game: StrandsGameBase,
+) -> bool:
+    """Return True if selection is a strict subset of any answer strand."""
+    submitted = {(p.r, p.c) for p in selection}
+    for _, ans_strand in game.answers():
+        ans_pos = {(p.r, p.c) for p in ans_strand.positions()}
+        if submitted < ans_pos:
+            return True
+    return False
+
+
 def _handle_enter(
     game: StrandsGameBase,
     cursor: PosBase,
@@ -313,6 +326,8 @@ def _handle_enter(
     """Handle Enter: start selection at cursor or submit strand."""
     if not selection:
         return cursor, [cursor], None, ""
+    if _is_partial_answer(selection, game):
+        return cursor, selection, None, "Keep selecting..."
     strand = selection_to_strand(selection)
     result = game.submit_strand(strand)
     if isinstance(result, tuple):
