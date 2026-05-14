@@ -398,3 +398,75 @@ def test_play_game_sleep_tight_more() -> None:
     word, strand = answers[0]
     assert game.submit_strand(strand) == (word, True)
     assert game.active_hint() is None
+
+def test_play_game_G_hints_0() -> None:
+    """
+    Test using at least four successful hints for game G with threshold 0.
+    """
+    game = StrandsGame("boards/cs-142.txt", hint_threshold=0)
+
+    for expected_index in range(4):
+        assert game.use_hint() == (expected_index, False)
+        word, strand = game.answers()[expected_index]
+        assert game.submit_strand(strand) == (word, True)
+
+
+def test_play_game_G_hints_1() -> None:
+    """
+    Test using at least four successful hints for game G with threshold 1.
+    """
+    game = StrandsGame("boards/cs-142.txt", hint_threshold=1)
+
+    non_theme_words = [
+    Strand(Pos(0, 0), [Step.S, Step.S, Step.E]),  # cone
+    Strand(Pos(0, 1), [Step.SE, Step.E, Step.E]),  # sory
+    Strand(Pos(0, 1), [Step.SE, Step.E, Step.NE]),  # sort
+    Strand(Pos(0, 1), [Step.SE, Step.SE, Step.E]),  # sowt
+]
+
+    for expected_index, strand in enumerate(non_theme_words):
+        result = game.submit_strand(strand)
+        assert isinstance(result, tuple)
+        assert result[1] is False
+        assert game.hint_meter() >= game.hint_threshold()
+
+        assert game.use_hint() == (expected_index, False)
+
+        word, answer_strand = game.answers()[expected_index]
+        assert game.submit_strand(answer_strand) == (word, True)
+
+def test_play_game_H_hints_0() -> None:
+    """
+    Test using at least four successful hints for game H with threshold 0.
+    """
+    game = StrandsGame("boards/on-the-side.txt", hint_threshold=0)
+
+    for expected_index in range(4):
+        assert game.use_hint() == (expected_index, False)
+        word, strand = game.answers()[expected_index]
+        assert game.submit_strand(strand) == (word, True)
+
+
+def test_play_game_H_hints_1() -> None:
+    """
+    Test using at least four successful hints for game H with threshold 1.
+    """
+    game = StrandsGame("boards/on-the-side.txt", hint_threshold=1)
+
+    non_theme_words = [
+    Strand(Pos(0, 0), [Step.S, Step.NE, Step.S, Step.SW]),  # nigre
+    Strand(Pos(0, 0), [Step.S, Step.SE, Step.S, Step.NW]),  # nisse
+    Strand(Pos(0, 1), [Step.S, Step.W, Step.N]),  # grin
+    Strand(Pos(0, 1), [Step.S, Step.W, Step.SE]),  # gris
+]
+
+    for expected_index, strand in enumerate(non_theme_words):
+        result = game.submit_strand(strand)
+        assert isinstance(result, tuple)
+        assert result[1] is False
+        assert game.hint_meter() >= game.hint_threshold()
+
+        assert game.use_hint() == (expected_index, False)
+
+        word, answer_strand = game.answers()[expected_index]
+        assert game.submit_strand(answer_strand) == (word, True)
