@@ -603,7 +603,11 @@ def test_load_game_H_variations() -> None:
         "frenchfries 4 6 sw sw sw w nw ne ne ne ne ne\n",
     ]
 
-    for lines in [on_the_side_lines(), extra_spacing_lines, capitalization_lines]:
+    for lines in [
+        on_the_side_lines(),
+        extra_spacing_lines,
+        capitalization_lines
+        ]:
         game = StrandsGame(lines)
 
         assert game.theme() == '"On the side"'

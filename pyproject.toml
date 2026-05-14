@@ -16,10 +16,13 @@ dependencies = [
     "pandas-stubs>=3.0.0.260204",
     "pygame>=2.5.2",
     "pylint>=3.0.3",
+    "pylint-per-file-ignores>=3.2.1",
     "pytest>=7.4.3",
     "pytest-json-report>=1.5.0",
     "pytest-metadata>=3.0.0",
     "pytest-mypy>=0.10.3",
+    "pytest-pylint>=0.21.0",
+    "pytest-ruff>=0.5",
     "pytest-timeout>=2.2.0",
     "rich>=14.3.3",
     "ruff>=0.6.4",
@@ -41,6 +44,7 @@ extend-exclude = [
 [tool.ruff.lint.per-file-ignores]
 "src/fakes.py" = ["F401"]
 "src/strands.py" = ["F401"]
+"tests/test_strands.py" = ["N802"]
 
 [tool.pylint.basic]
 variable-rgx = "[a-zA-Z_][a-z0-9_]{0,30}$"
@@ -52,8 +56,10 @@ max-attributes = 12
 
 [tool.pylint.message_control]
 disable = ["W0611", "R0903", "R1705", "W0622"]
+per-file-ignores = ["tests/test_strands.py:C0103"]
 
 [tool.pylint.master]
+load-plugins = ["pylint_per_file_ignores"]
 extension-pkg-allow-list = "pygame"
 source-roots = ["src", "tests"]
 ignore = [

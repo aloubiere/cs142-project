@@ -394,7 +394,6 @@ class StrandsGame(StrandsGameBase):
         """
         assert not self.game_over(), \
             "Calling use_hint() after the game is over."
-
         match self.active_hint():
             case (int(), True):
                 return "Use your current hint"
@@ -407,9 +406,8 @@ class StrandsGame(StrandsGameBase):
                     i for i, (w, _)
                     in enumerate(self.answers())
                     if w not in self._found_words
-                )
+                    )
                 hint = (i, False)
-
         self._hint_meter -= self.hint_threshold()
         self._active_hint = hint
         return hint
