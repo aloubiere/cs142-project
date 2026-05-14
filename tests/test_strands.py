@@ -452,6 +452,12 @@ def test_play_game_sleep_tight_more() -> None:
     assert game.use_hint() == (0, False)
     assert game.active_hint() == (0, False)
 
+    assert game.use_hint() == "No hint yet"
+
+    time = Strand(Pos(3, 2), [Step.E, Step.E, Step.E])
+    assert game.submit_strand(time) == ("time", False)
+    assert game.hint_meter() >= game.hint_threshold()
+
     assert game.use_hint() == (0, True)
     assert game.active_hint() == (0, True)
 
@@ -460,7 +466,6 @@ def test_play_game_sleep_tight_more() -> None:
     word, strand = answers[0]
     assert game.submit_strand(strand) == (word, True)
     assert game.active_hint() is None
-
 
 def test_play_game_G_hints_0() -> None:
     """
@@ -724,6 +729,12 @@ def test_play_game_H_more() -> None:
     assert game.use_hint() == (0, False)
     assert game.active_hint() == (0, False)
 
+    assert game.use_hint() == "No hint yet"
+
+    gris = Strand(Pos(0, 1), [Step.S, Step.W, Step.SE])
+    assert game.submit_strand(gris) == ("gris", False)
+    assert game.hint_meter() >= game.hint_threshold()
+
     assert game.use_hint() == (0, True)
     assert game.active_hint() == (0, True)
 
@@ -732,7 +743,6 @@ def test_play_game_H_more() -> None:
     word, strand = answers[0]
     assert game.submit_strand(strand) == (word, True)
     assert game.active_hint() is None
-
 
 def test_is_not_cyclic() -> None:
     """
