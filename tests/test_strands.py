@@ -1,5 +1,5 @@
 """
-Milestone 1 QA tests for Strands game logic.
+M1 QA tests for Strands game's logic
 """
 
 import pytest
@@ -10,8 +10,7 @@ from strands import Board, Pos, Strand, StrandsGame
 
 def test_inheritance() -> None:
     """
-    Test that the concrete game logic classes inherit from the
-    corresponding abstract base classes.
+    Make sure the main classes use the expected base classes.
     """
     assert issubclass(Pos, PosBase)
     assert issubclass(Strand, StrandBase)
@@ -21,7 +20,7 @@ def test_inheritance() -> None:
 
 def test_pos_take_step() -> None:
     """
-    Test taking one step in each of the eight neighboring directions.
+    Check that taking one step moves to the right neighboring square.
     """
     pos = Pos(10, 5)
 
@@ -38,8 +37,7 @@ def test_pos_take_step() -> None:
 
 def test_pos_step_to_success() -> None:
     """
-    Test computing the step from one position to each of its
-    eight neighboring positions.
+    Check that step_to finds the correct direction for nearby positions.
     """
     pos = Pos(10, 5)
 
@@ -56,7 +54,7 @@ def test_pos_step_to_success() -> None:
 
 def test_pos_step_to_failure() -> None:
     """
-    Test that step_to raises ValueError when positions are too far apart.
+    Check that step_to rejects positions that are not neighbors.
     """
     pos = Pos(10, 5)
 
@@ -87,7 +85,7 @@ def test_pos_step_to_failure() -> None:
 
 def test_strand_positions_straight_cardinal() -> None:
     """
-    Test positions for strands moving in each cardinal direction.
+    Check the positions in strands that move north, south, east, or west.
     """
     north = Strand(Pos(5, 5), [Step.N, Step.N, Step.N, Step.N])
     south = Strand(Pos(5, 5), [Step.S, Step.S, Step.S, Step.S])
@@ -110,7 +108,7 @@ def test_strand_positions_straight_cardinal() -> None:
 
 def test_strand_positions_straight_intercardinal() -> None:
     """
-    Test positions for strands moving in each intercardinal direction.
+    Check the positions in strands that move diagonally.
     """
     northwest = Strand(Pos(5, 5), [Step.NW, Step.NW, Step.NW, Step.NW])
     northeast = Strand(Pos(5, 5), [Step.NE, Step.NE, Step.NE, Step.NE])
@@ -143,7 +141,7 @@ SLEEP_TIGHT_BOARD = [
 
 def sleep_tight_answers() -> list[tuple[str, Strand]]:
     """
-    Return the expected answers for boards/sleep-tight.txt.
+    Store the answer list for the sleep-tight board.
     """
     return [
         ("mask", Strand(Pos(5, 3), [Step.S, Step.S, Step.NE])),
@@ -180,7 +178,7 @@ ON_THE_SIDE_BOARD = [
 
 def on_the_side_answers() -> list[tuple[str, Strand]]:
     """
-    Return the expected answers for boards/on-the-side.txt.
+    Store the answer list for the on-the-side board.
     """
     return [
         ("home", Strand(Pos(4, 3), [Step.W, Step.SW, Step.E])),
@@ -205,7 +203,7 @@ def on_the_side_answers() -> list[tuple[str, Strand]]:
 
 def on_the_side_lines() -> list[str]:
     """
-    Return a list of strings representing the on-the-side game file.
+    Build the on-the-side board as a list of file lines.
     """
     return [
         '"On the side"\n',
@@ -232,7 +230,7 @@ def on_the_side_lines() -> list[str]:
 
 def sleep_tight_lines() -> list[str]:
     """
-    Return a list of strings representing the sleep-tight game file.
+    Build the sleep-tight board as a list of file lines.
     """
     return [
         '"Sleep tight"\n',
@@ -259,7 +257,7 @@ def sleep_tight_lines() -> list[str]:
 
 def test_load_game_sleep_tight_file() -> None:
     """
-    Test loading boards/sleep-tight.txt from a filename.
+    Check that sleep-tight loads correctly from its board file.
     """
     game = StrandsGame("boards/sleep-tight.txt")
 
@@ -275,8 +273,7 @@ def test_load_game_sleep_tight_file() -> None:
 
 def test_load_game_sleep_tight_variations() -> None:
     """
-    Test that loading works with a list of strings and with acceptable
-    whitespace and capitalization variations.
+    Check that sleep-tight still loads with extra spacing and mixed case.
     """
     normal_lines = sleep_tight_lines()
 
@@ -331,7 +328,7 @@ def test_load_game_sleep_tight_variations() -> None:
 
 def test_load_game_sleep_tight_invalid() -> None:
     """
-    Test that invalid versions of the sleep-tight game raise ValueError.
+    Check a few broken versions of the sleep-tight board.
     """
     invalid_missing_board_letter = [
         '"Sleep tight"\n',
@@ -374,7 +371,7 @@ def test_load_game_sleep_tight_invalid() -> None:
 
 def test_play_game_sleep_tight_once() -> None:
     """
-    Test playing all theme words in the listed answer order.
+    Play through sleep-tight in the original answer order.
     """
     game = StrandsGame("boards/sleep-tight.txt")
     answers = sleep_tight_answers()
@@ -396,7 +393,7 @@ def test_play_game_sleep_tight_once() -> None:
 
 def test_play_game_sleep_tight_twice() -> None:
     """
-    Test playing all theme words in a different order.
+    Play through sleep-tight again, but in a different order.
     """
     game = StrandsGame("boards/sleep-tight.txt")
     answers = sleep_tight_answers()
@@ -437,7 +434,7 @@ def test_play_game_sleep_tight_three_times() -> None:
 
 def test_play_game_sleep_tight_more() -> None:
     """
-    Test hint behavior together with submitting theme words.
+    Test for hint behavior and submitting theme words.
     """
     game = StrandsGame("boards/sleep-tight.txt", hint_threshold=1)
     answers = sleep_tight_answers()
@@ -463,7 +460,7 @@ def test_play_game_sleep_tight_more() -> None:
 
 def test_play_game_G_hints_0() -> None:
     """
-    Test using at least four successful hints for game G with threshold 0.
+    Test using four successful hints for game G and threshold 0.
     """
     game = StrandsGame("boards/cs-142.txt", hint_threshold=0)
 
@@ -475,7 +472,7 @@ def test_play_game_G_hints_0() -> None:
 
 def test_play_game_G_hints_1() -> None:
     """
-    Test using at least four successful hints for game G with threshold 1.
+    Test using four successful hints for game G with threshold 1.
     """
     game = StrandsGame("boards/cs-142.txt", hint_threshold=1)
 
@@ -499,7 +496,7 @@ def test_play_game_G_hints_1() -> None:
 
 def test_play_game_H_hints_0() -> None:
     """
-    Test using at least four successful hints for game H with threshold 0.
+    Test four successful hints for game H with threshold 0.
     """
     game = StrandsGame("boards/on-the-side.txt", hint_threshold=0)
 
@@ -511,7 +508,7 @@ def test_play_game_H_hints_0() -> None:
 
 def test_play_game_H_hints_1() -> None:
     """
-    Test using at least four successful hints for game H with threshold 1.
+    Test four successful hints for game H with threshold 1.
     """
     game = StrandsGame("boards/on-the-side.txt", hint_threshold=1)
 
@@ -535,7 +532,7 @@ def test_play_game_H_hints_1() -> None:
 
 def test_load_game_H_file() -> None:
     """
-    Test loading game H from a filename.
+    Test the loading game H from a filename.
     """
     game = StrandsGame("boards/on-the-side.txt")
 
@@ -606,7 +603,7 @@ def test_load_game_H_variations() -> None:
 
 def test_load_game_H_invalid() -> None:
     """
-    Test that invalid versions of game H raise ValueError.
+    Test invalid versions of game H using the raise ValueError.
     """
     invalid_missing_board_letter = [
         '"On the side"\n',
@@ -649,7 +646,7 @@ def test_load_game_H_invalid() -> None:
 
 def test_play_game_H_once() -> None:
     """
-    Test playing all game H theme words in the listed answer order.
+    Test playing all game H theme words in the listed answers. 
     """
     game = StrandsGame("boards/on-the-side.txt")
     answers = on_the_side_answers()
@@ -810,7 +807,6 @@ def test_overlapping() -> None:
 def test_valid_game_files() -> None:
     """
     Test that each game file in boards/ is either valid or raises ValueError
-    as required for invalid game files.
     """
     board_files = [
         "___-a-___.txt",
