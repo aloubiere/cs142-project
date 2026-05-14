@@ -141,7 +141,6 @@ SLEEP_TIGHT_BOARD = [
     ["l", "a", "t", "s", "e", "a"],
 ]
 
-
 def sleep_tight_answers() -> list[tuple[str, Strand]]:
     """
     Return the expected answers for boards/sleep-tight.txt.
@@ -167,6 +166,69 @@ def sleep_tight_answers() -> list[tuple[str, Strand]]:
         ])),
     ]
 
+ON_THE_SIDE_BOARD = [
+    ["n", "g", "t", "e", "k", "s"],
+    ["i", "r", "s", "a", "e", "y"],
+    ["e", "s", "t", "i", "r", "l"],
+    ["o", "s", "r", "u", "c", "f"],
+    ["h", "f", "o", "h", "r", "e"],
+    ["h", "m", "e", "e", "k", "l"],
+    ["w", "c", "n", "n", "i", "r"],
+    ["a", "f", "f", "l", "e", "c"],
+]
+
+
+def on_the_side_answers() -> list[tuple[str, Strand]]:
+    """
+    Return the expected answers for boards/on-the-side.txt.
+    """
+    return [
+        ("home", Strand(Pos(4, 3), [Step.W, Step.SW, Step.E])),
+        ("steak", Strand(Pos(1, 2), [Step.N, Step.E, Step.S, Step.NE])),
+        ("curly", Strand(Pos(3, 4), [Step.W, Step.NE, Step.E, Step.N])),
+        ("waffle", Strand(Pos(6, 0), [
+            Step.S, Step.E, Step.E, Step.E, Step.E
+        ])),
+        ("crinkle", Strand(Pos(7, 5), [
+            Step.N, Step.W, Step.W, Step.NE, Step.E, Step.N
+        ])),
+        ("shoestring", Strand(Pos(3, 1), [
+            Step.SW, Step.N, Step.N, Step.E, Step.E,
+            Step.NW, Step.W, Step.N, Step.E
+        ])),
+        ("frenchfries", Strand(Pos(3, 5), [
+            Step.SW, Step.SW, Step.SW, Step.W, Step.NW,
+            Step.NE, Step.NE, Step.NE, Step.NE, Step.NE
+        ])),
+    ]
+
+
+def on_the_side_lines() -> list[str]:
+    """
+    Return a list of strings representing the on-the-side game file.
+    """
+    return [
+        '"On the side"\n',
+        "\n",
+        "N G T E K S\n",
+        "I R S A E Y\n",
+        "E S T I R L\n",
+        "O S R U C F\n",
+        "H F O H R E\n",
+        "H M E E K L\n",
+        "W C N N I R\n",
+        "A F F L E C\n",
+        "\n",
+        "home         5 4  w sw e\n",
+        "steak        2 3  n e s ne\n",
+        "curly        4 5  w ne e n\n",
+        "waffle       7 1  s e e e e\n",
+        "crinkle      8 6  n w w ne e n\n",
+        "shoestring   4 2  sw n n e e nw w n e\n",
+        "frenchfries  4 6  sw sw sw w nw ne ne ne ne ne\n",
+        "\n",
+        "https://www.nytimes.com/games/strands (5/5/2025)\n",
+    ]
 
 def sleep_tight_lines() -> list[str]:
     """
@@ -470,3 +532,336 @@ def test_play_game_H_hints_1() -> None:
 
         word, answer_strand = game.answers()[expected_index]
         assert game.submit_strand(answer_strand) == (word, True)
+
+def test_load_game_H_file() -> None:
+    """
+    Test loading game H from a filename.
+    """
+    game = StrandsGame("boards/on-the-side.txt")
+
+    assert game.theme() == '"On the side"'
+    assert game.board().num_rows() == 8
+    assert game.board().num_cols() == 6
+    assert game.answers() == on_the_side_answers()
+
+    for r, row in enumerate(ON_THE_SIDE_BOARD):
+        for c, expected_letter in enumerate(row):
+            assert game.board().get_letter(Pos(r, c)) == expected_letter
+
+
+def test_load_game_H_variations() -> None:
+    """
+    Test loading game H with whitespace and capitalization variations.
+    """
+    extra_spacing_lines = [
+        '"On the side"\n',
+        "\n",
+        "N   G T E   K S\n",
+        "I R   S A E Y\n",
+        "E S T   I R L\n",
+        "O S R U C F\n",
+        "H F O H R E\n",
+        "H M E E K L\n",
+        "W C N N I R\n",
+        "A F F L E C\n",
+        "\n",
+        "home 5 4 w sw e\n",
+        "steak 2 3 n e s ne\n",
+        "curly 4 5 w ne e n\n",
+        "waffle 7 1 s e e e e\n",
+        "crinkle 8 6 n w w ne e n\n",
+        "shoestring 4 2 sw n n e e nw w n e\n",
+        "frenchfries 4 6 sw sw sw w nw ne ne ne ne ne\n",
+    ]
+
+    capitalization_lines = [
+        '"On the side"\n',
+        "\n",
+        "n g t e k s\n",
+        "i r s a e y\n",
+        "e s t i r l\n",
+        "o s r u c f\n",
+        "h f o h r e\n",
+        "h m e e k l\n",
+        "w c n n i r\n",
+        "a f f l e c\n",
+        "\n",
+        "HOME 5 4 W SW E\n",
+        "Steak 2 3 N E S NE\n",
+        "curly 4 5 w ne e n\n",
+        "WAFFLE 7 1 S E E E E\n",
+        "Crinkle 8 6 N W W NE E N\n",
+        "SHOESTRING 4 2 SW N N E E NW W N E\n",
+        "frenchfries 4 6 sw sw sw w nw ne ne ne ne ne\n",
+    ]
+
+    for lines in [on_the_side_lines(), extra_spacing_lines, capitalization_lines]:
+        game = StrandsGame(lines)
+
+        assert game.theme() == '"On the side"'
+        assert game.board().num_rows() == 8
+        assert game.board().num_cols() == 6
+        assert game.answers() == on_the_side_answers()
+
+
+def test_load_game_H_invalid() -> None:
+    """
+    Test that invalid versions of game H raise ValueError.
+    """
+    invalid_missing_board_letter = [
+        '"On the side"\n',
+        "\n",
+        "N G T E K\n",
+        "I R S A E Y\n",
+        "E S T I R L\n",
+        "O S R U C F\n",
+        "H F O H R E\n",
+        "H M E E K L\n",
+        "W C N N I R\n",
+        "A F F L E C\n",
+        "\n",
+        "home 5 4 w sw e\n",
+    ]
+
+    invalid_wrong_answer_word = on_the_side_lines().copy()
+    invalid_wrong_answer_word[12] = "xxxx 5 4 w sw e\n"
+
+    invalid_out_of_bounds_answer = on_the_side_lines().copy()
+    invalid_out_of_bounds_answer[12] = "home 9 4 w sw e\n"
+
+    invalid_bad_step = on_the_side_lines().copy()
+    invalid_bad_step[12] = "home 5 4 w banana e\n"
+
+    invalid_incomplete_answers = on_the_side_lines()[:13]
+
+    invalid_games = [
+        invalid_missing_board_letter,
+        invalid_wrong_answer_word,
+        invalid_out_of_bounds_answer,
+        invalid_bad_step,
+        invalid_incomplete_answers,
+    ]
+
+    for lines in invalid_games:
+        with pytest.raises(ValueError):
+            StrandsGame(lines)
+
+
+def test_play_game_H_once() -> None:
+    """
+    Test playing all game H theme words in the listed answer order.
+    """
+    game = StrandsGame("boards/on-the-side.txt")
+    answers = on_the_side_answers()
+
+    assert not game.game_over()
+    assert not game.found_strands()
+
+    for word, strand in answers:
+        assert game.submit_strand(strand) == (word, True)
+
+    assert game.found_strands() == [strand for _, strand in answers]
+    assert game.game_over()
+
+
+def test_play_game_H_twice() -> None:
+    """
+    Test playing all game H theme words in a different order.
+    """
+    game = StrandsGame("boards/on-the-side.txt")
+    answers = on_the_side_answers()
+
+    order = [6, 2, 0, 4, 1, 5, 3]
+    found = []
+
+    for index in order:
+        word, strand = answers[index]
+        assert game.submit_strand(strand) == (word, True)
+        found.append(strand)
+        assert game.found_strands() == found
+
+    assert game.game_over()
+
+
+def test_play_game_H_three_times() -> None:
+    """
+    Test game H theme words, repeated words, non-theme dictionary words,
+    and too-short submissions.
+    """
+    game = StrandsGame("boards/on-the-side.txt")
+    answers = on_the_side_answers()
+
+    word, strand = answers[0]
+    assert game.submit_strand(strand) == (word, True)
+    assert game.submit_strand(strand) == "Already found"
+
+    grin = Strand(Pos(0, 1), [Step.S, Step.W, Step.N])
+    assert game.submit_strand(grin) == ("grin", False)
+    assert game.submit_strand(grin) == "Already found"
+
+    ngt = Strand(Pos(0, 0), [Step.E, Step.E])
+    assert game.submit_strand(ngt) == "Too short"
+
+    assert not game.game_over()
+
+
+def test_play_game_H_more() -> None:
+    """
+    Test game H hint behavior together with submitting theme words.
+    """
+    game = StrandsGame("boards/on-the-side.txt", hint_threshold=1)
+    answers = on_the_side_answers()
+
+    assert game.active_hint() is None
+    assert game.use_hint() == "No hint yet"
+
+    grin = Strand(Pos(0, 1), [Step.S, Step.W, Step.N])
+    assert game.submit_strand(grin) == ("grin", False)
+    assert game.hint_meter() >= game.hint_threshold()
+
+    assert game.use_hint() == (0, False)
+    assert game.active_hint() == (0, False)
+
+    assert game.use_hint() == (0, True)
+    assert game.active_hint() == (0, True)
+
+    assert game.use_hint() == "Use your current hint"
+
+    word, strand = answers[0]
+    assert game.submit_strand(strand) == (word, True)
+    assert game.active_hint() is None
+
+def test_is_not_cyclic() -> None:
+    """
+    Test that four acyclic strands are not cyclic.
+    """
+    strands = [
+        Strand(Pos(0, 0), [Step.E]),
+        Strand(Pos(0, 0), [Step.E, Step.E]),
+        Strand(Pos(0, 0), [Step.E, Step.S, Step.W]),
+        Strand(Pos(2, 2), [Step.N, Step.NE, Step.E, Step.SE]),
+    ]
+
+    for strand in strands:
+        assert not strand.is_cyclic()
+
+
+def test_is_cyclic() -> None:
+    """
+    Test that four cyclic strands are cyclic.
+    """
+    strands = [
+        Strand(Pos(0, 0), [Step.E, Step.W]),
+        Strand(Pos(0, 0), [Step.E, Step.S, Step.W, Step.N]),
+        Strand(Pos(2, 2), [Step.N, Step.E, Step.S, Step.W]),
+        Strand(Pos(3, 3), [Step.NE, Step.SE, Step.SW, Step.NW]),
+    ]
+
+    for strand in strands:
+        assert strand.is_cyclic()
+
+def test_overlapping() -> None:
+    """
+    Test that overlapping strands for the same theme word can be played.
+    """
+    home_game_lines = [
+        '"Overlapping home"\n',
+        "\n",
+        "H O M E\n",
+        "A M E N\n",
+        "C A R D\n",
+        "\n",
+        "home 1 1 e e e\n",
+        "amen 2 1 e e e\n",
+        "card 3 1 e e e\n",
+    ]
+
+    home_original = Strand(Pos(0, 0), [Step.E, Step.E, Step.E])
+    home_overlap = Strand(Pos(0, 0), [Step.E, Step.S, Step.E])
+
+    game = StrandsGame(home_game_lines)
+    assert game.submit_strand(home_original) == ("home", True)
+
+    game = StrandsGame(home_game_lines)
+    assert game.submit_strand(home_overlap) == ("home", True)
+
+    card_game_lines = [
+        '"Overlapping card"\n',
+        "\n",
+        "C A R D\n",
+        "B R D S\n",
+        "F I S H\n",
+        "\n",
+        "card 1 1 e e e\n",
+        "brds 2 1 e e e\n",
+        "fish 3 1 e e e\n",
+    ]
+
+    card_original = Strand(Pos(0, 0), [Step.E, Step.E, Step.E])
+    card_overlap = Strand(Pos(0, 0), [Step.E, Step.S, Step.E])
+
+    game = StrandsGame(card_game_lines)
+    assert game.submit_strand(card_original) == ("card", True)
+
+    game = StrandsGame(card_game_lines)
+    assert game.submit_strand(card_overlap) == ("card", True)
+
+
+def test_valid_game_files() -> None:
+    """
+    Test that each game file in boards/ is either valid or raises ValueError
+    as required for invalid game files.
+    """
+    board_files = [
+        "___-a-___.txt",
+        "a-good-roast.txt",
+        "a-little-respect.txt",
+        "best-in-class.txt",
+        "boogie-woogie-woogie.txt",
+        "buzzing-in.txt",
+        "coarse-material.txt",
+        "counter-offers.txt",
+        "cs-142.txt",
+        "directions.txt",
+        "face-time.txt",
+        "find-the-missing-links.txt",
+        "fore.txt",
+        "free-for-all.txt",
+        "grrr.txt",
+        "happy.txt",
+        "i-get-around.txt",
+        "im-in-lobe.txt",
+        "in-stitches.txt",
+        "its-in-the-stars.txt",
+        "ive-got-you-covered.txt",
+        "join-the-chorus.txt",
+        "keep-on-keeping-on.txt",
+        "kitty-corner.txt",
+        "my-bad.txt",
+        "on-the-hunt.txt",
+        "on-the-side.txt",
+        "outsiders.txt",
+        "say-ah.txt",
+        "shine-on.txt",
+        "sleep-tight.txt",
+        "star-wars-a-new-hope.txt",
+        "step-on-it.txt",
+        "thats-quite-a-tasty-mouthful.txt",
+        "the-feeling-is-mutual.txt",
+        "the-movies.txt",
+        "to-a-degree.txt",
+        "training-day.txt",
+        "two-thumbs-up.txt",
+        "well-fancy-that.txt",
+        "wetland-patrol.txt",
+        "what-a-softie.txt",
+        "what-a-trill.txt",
+        "what-talent.txt",
+    ]
+
+    for filename in board_files:
+        try:
+            StrandsGame(f"boards/{filename}")
+        except ValueError:
+            with pytest.raises(ValueError):
+                StrandsGame(f"boards/{filename}")
