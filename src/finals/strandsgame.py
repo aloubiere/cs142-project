@@ -397,10 +397,10 @@ class StrandsGame(StrandsGameBase):
         match self.active_hint():
             case (int(), True):
                 return "Use your current hint"
-            case _ if self.hint_meter() < self.hint_threshold():
-                return "No hint yet"
             case (int() as i, False):
                 hint = (i, True)
+            case _ if self.hint_meter() < self.hint_threshold():
+                return "No hint yet"
             case None:
                 i = next(
                     i for i, (w, _)
@@ -408,7 +408,7 @@ class StrandsGame(StrandsGameBase):
                     if w not in self._found_words
                     )
                 hint = (i, False)
-        self._hint_meter -= self.hint_threshold()
+                self._hint_meter -= self.hint_threshold()
         self._active_hint = hint
         return hint
 
