@@ -2,6 +2,7 @@
 StrandsGame Class Implementation
 """
 
+from pathlib import Path
 from base import (
     Step, PosBase, StrandsGameBase, BoardBase, StrandBase
     )
@@ -17,6 +18,7 @@ class StrandsGame(StrandsGameBase):
 
     # Class Attribute
     _dictionary: set[str] = set()
+    _root: Path = Path(__file__).resolve().parents[2]
 
     # Instance Attribute
     _theme: str
@@ -196,15 +198,16 @@ class StrandsGame(StrandsGameBase):
 
 
     @classmethod
-    def load_dictionary(cls, filename: str) -> None:
+    def load_dictionary(cls, file_name: str) -> None:
         """
-        load valid words from the dictionary file given
+        load valid words from the given dictionary file name
         """
-        if not isinstance(filename, str):
+        if not isinstance(file_name, str):
             raise TypeError(
-                "The argument `filename` must be a string."
+                "The argument `file_name` must be a string."
                 )
-        with open(filename, 'r', encoding = 'utf-8') as file:
+        path = str(StrandsGame._root / f"assets/{file_name}")
+        with open(path, 'r', encoding = 'utf-8') as file:
             cls._dictionary = set()
             for line in file:
                 word = line.strip().lower()
@@ -413,4 +416,4 @@ class StrandsGame(StrandsGameBase):
         return hint
 
 
-StrandsGame.load_dictionary("assets/web2.txt")
+StrandsGame.load_dictionary("web2.txt")

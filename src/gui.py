@@ -3,24 +3,29 @@ Strands GUI Implementation
 """
 # Amber
 
-from sys import argv
+from pathlib import Path
 from glob import glob
 from random import choice
+from click import command, option
 from gui_files.gui import StrandGUI
 
+
+@command("src/gui.py")
+@option("--show", "mode", is_flag = True)
+@option("--game", "-g", "game")
+@option("--hint", "-h", "hint_threshold", type = int)
+def play(
+    mode: bool = False,
+    game: str | None = None,
+    hint_threshold: int | None = None
+    ) -> None:
+    """ play the game Strands """
+    root = Path(__file__).resolve().parents[1]
+    if game is None:
+        file = choice(glob(str(root / "boards/*.txt")))
+    else:
+        file = str(root / f"boards/{game}.txt")
+    StrandGUI(file, mode, hint_threshold).play()
+
 if __name__ == "__main__":
-    match argv:
-        case [_, "play", str() as file]:
-            StrandGUI(file, False).play()
-        case [_, "show", str() as file]:
-            StrandGUI(file, True).play()
-        case [_, "play"]:
-            file = choice(glob("boards/*.txt"))
-            StrandGUI(file, False).play()
-        case [_, "show"]:
-            file = choice(glob("boards/*.txt"))
-            StrandGUI(file, True).play()
-        case [_]:
-            StrandGUI("boards/cs-142.txt", False).play()
-        case _:
-            raise TypeError("Invalid arguments.")
+    play()

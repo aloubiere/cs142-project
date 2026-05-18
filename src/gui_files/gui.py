@@ -11,13 +11,91 @@ from base import (
     )
 from strands import Pos, Strand, StrandsGame
 from gui_files.sprites import Text, Letter, Meter, Specs
-from gui_files.settings import (
-    HINT_THRESHOLD, CAPTION, FRAME_RATE,
-    GRID_SIZE, ELEMENT_BUFFER,
-    CANVAS_SIZE, HEADER, FOOTER, BORDER,
-    SELECT_COLOR, CANVAS_COLOR, TEXT_COLOR, BORDER_COLOR,
-    HINT_COLOR, FOUND_COLOR, UNTHEME_COLOR,
-    )
+
+
+class App:
+    """ constants for StrandsGUI """
+
+    # the caption for the pygame window
+    CAPTION: str = "Strands"
+
+    # the refresh rate for the pygame window
+    FRAME_RATE: int = 24
+
+    # the minimum relative movement required to trigger
+    # click-dragging
+    MIN_REL: int = 2
+
+    # the minimum pygame window size when launching
+    CANVAS_SIZE: tuple[int, int] = (600, 600)
+
+    # the standard x and y spacing of letters on the board
+    GRID_SIZE: tuple[int, int] = (60, 60)
+
+    # the standard height for the header of the board
+    HEADER: int = 50
+
+    # the standard height for the footer of the board
+    FOOTER: int = 50
+
+    # the standard size for the x and y border around the
+    # board
+    BORDER: tuple[int, int] = (25, 25)
+
+    # used by StrandsGUI to scale sprites to add space
+    # between and around sprites in the pygame window
+    ELEMENT_BUFFER: float = 1 - 1/4
+
+    # the default aspect ratio for info sprites
+    INFO_AR: float = 3
+
+    # the starting text for the message sprite
+    MESSAGE_START: str = "Good luck!"
+
+    # the winning text for the message sprite
+    MESSAGE_WIN: str = "You win!"
+
+    # the text if submitting nothing for the message sprite
+    MESSAGE_EMPTY_SUBMIT: str = "Nothing selected"
+
+    # the text if clicking on the found sprite
+    MESSAGE_FOUND: str = "Only {left} left!"
+
+    # the text for the hint sprite if it is a Text object
+    HINT_TEXT: str = "HINT"
+
+    # the text for the hint sprite if it is a Meter object
+    HINT_METER: str = "HINT"
+
+    # the text for the found sprite if it is a Text object
+    FOUND_TEXT: str = "Found?"
+
+    # the text for the found sprite if it is a Meter object
+    FOUND_METER: str = "Found {meter}/{threshold}"
+
+    # the scaling factor for the strand connection lines
+    CONNECT_SCALE: float = 1/3
+
+    # the background color of the canvas
+    CANVAS_COLOR: pygame.Color = pygame.Color("white")
+
+    # the default color of text
+    TEXT_COLOR: pygame.Color = pygame.Color("black")
+
+    # the color used to show selected strands
+    SELECT_COLOR: pygame.Color = pygame.Color("lightgray")
+
+    # the color used to show dictionary words when found
+    UNTHEME_COLOR: pygame.Color = pygame.Color("black")
+
+    # the color used to show active hints
+    HINT_COLOR: pygame.Color = pygame.Color("lavender")
+
+    # the color used to show found words
+    FOUND_COLOR: pygame.Color = pygame.Color("lightskyblue")
+
+    # the color of the border around the board
+    BORDER_COLOR: pygame.Color = pygame.Color("snow2")
 
 
 class Adjustments(NamedTuple):
@@ -76,7 +154,12 @@ class StrandGUI():
     _theme: Text
 
 
-    def __init__(self, game_file: str, mode: bool) -> None:
+    def __init__(
+        self,
+        game: str,
+        mode: bool,
+        hint_threshold: int | None = None
+        ) -> None:
         """
         Load a game!
 
@@ -86,19 +169,34 @@ class StrandGUI():
             mode (bool): a boolean specifying whether to
                 load the game as solved. If True, the game
                 will show the solutions.
+            hint_threshold (int | None): The hint threshold
+                as a nonnegative integer or None to use the
+                default.
         """
         if not isinstance(mode, bool):
             raise TypeError(
                 "The argument `mode` must be boolean."
                 )
-        if not isinstance(game_file, str):
+        if not isinstance(game, str):
             raise TypeError(
-                "The argument `game_file` must be a "
-                "string."
+                "The argument `game` must be a string."
                 )
-        self._game = StrandsGame(game_file, HINT_THRESHOLD)
+        if hint_threshold is not None:
+            if not isinstance(hint_threshold, int):
+                raise TypeError(
+                    "The argument `hint_threshold` must "
+                    "be a nonnegative integer."
+                    )
+            if hint_threshold < 0:
+                raise ValueError(
+                    "The argument `hint_threshold` must "
+                    "be a nonnegative integer."
+                    )
+            self._game = StrandsGame(game, hint_threshold)
+        else:
+            self._game = StrandsGame(game)
         pygame.init()
-        pygame.display.set_caption(CAPTION)
+        pygame.display.set_caption(App.CAPTION)
         self._canvas = pygame.display.set_mode(
             self._size(),
             pygame.RESIZABLE
@@ -112,18 +210,30 @@ class StrandGUI():
                 self._submitter()
 
 
-    def _size(self) -> tuple[int, int]:
+    # SIZING METHODS
+
+    def _size(
+        self,
+        size: tuple[int, int] | None = None
+        ) -> tuple[int, int]:
         """
-        scale the canvas for the board
+        scale the canvas and/or board
 
-        If the canvas width and canvas height to fit the
-        board are calculated to be below the minimum width
-        and minimum height, the canvas width and height
-        are set to the minimum width and height and the
-        board is rescaled.
+        Inputs:
+            size (tuple[int, int] | None): the size of the
+                canvas or None to size the canvas using the
+                board
 
-        If the scaling factor is calculated to be negative,
-        it is set to 0.
+        If the argument `size` is None and the canvas width
+        and canvas height to fit the board are calculated
+        to be below the minimum width and minimum height,
+        the canvas width and height are set to the minimum
+        width and height and the board is rescaled.
+
+        If the argument `size` is given, the board is
+        rescaled to fit the given size. If the scaling
+        factor is calculated to be negative, it is set to
+        0.
 
         The calculated scaling factor, x border, and y
         border are saved in the `_adjustments` attribute,
@@ -136,72 +246,42 @@ class StrandGUI():
         """
         rows = self._game.board().num_rows()
         cols = self._game.board().num_cols()
-        board_width = cols * GRID_SIZE
-        board_height = rows * GRID_SIZE + HEADER + FOOTER
-        assert board_width > 0 and board_height > 0, \
-            "The display board must have positive height \
-            and width."
-        canvas_width = board_width + 2 * BORDER
-        canvas_height = board_height + 2 * BORDER
-        min_width, min_height = CANVAS_SIZE
-        if (
-            canvas_width > min_width
-            or canvas_height > min_height
-            ):
-            self._adj = Adjustments(1, BORDER, BORDER)
-            return (canvas_width, canvas_height)
-        a = min(
-            ((min_width - 2 * BORDER) / board_width),
-            ((min_height - 2 * BORDER) / board_height)
+        grid_x, grid_y = App.GRID_SIZE
+        border_x, border_y = App.BORDER
+        board_width = cols * grid_x
+        board_height = (
+            rows * grid_y + App.HEADER + App.FOOTER
             )
-        a = max(a, 0)
-        self._adj = Adjustments(
-            a,
-            round((min_width - board_width * a) / 2),
-            round((min_height - board_height * a) / 2)
-            )
-        return (min_width, min_height)
-
-
-    def _resize(self, w: int, h: int) -> None:
-        """
-        process a video resize event with the given size
-
-        If the scaling factor is calculated to be negative,
-        it is set to 0.
-
-        The calculated scaling factor, x border, and y
-        border are saved in the `_adjustments` attribute,
-        in that order.
-
-        The sprites are updated and the display is
-        re-rendered.
-
-        Inputs:
-            w (int): the canvas width
-            h (int): the canvas height
-
-        Raises AssertionError if the board width or board
-        height are calculated to be nonpositive somehow.
-        """
-        rows = self._game.board().num_rows()
-        cols = self._game.board().num_cols()
-        board_width = cols * GRID_SIZE
-        board_height = rows * GRID_SIZE + HEADER + FOOTER
         assert board_width > 0 and board_height > 0, (
             "The display board must have positive height "
             "and width."
             )
+        if size is None:
+            canvas_width = board_width + 2 * border_x
+            canvas_height = board_height + 2 * border_y
+            min_width, min_height = App.CANVAS_SIZE
+            if (
+                canvas_width > min_width
+                or canvas_height > min_height
+                ):
+                self._adj = Adjustments(
+                    1, border_x, border_y
+                    )
+                return (canvas_width, canvas_height)
+            canvas_width, canvas_height = App.CANVAS_SIZE
+        else:
+            canvas_width, canvas_height = size
         a = min(
-            ((w - 2 * BORDER) / board_width),
-            ((h - 2 * BORDER) / board_height)
+            ((canvas_width - 2 * border_x) / board_width),
+            ((canvas_height - 2 * border_y) / board_height)
             )
         a = max(a, 0)
-        xb = round((w - board_width * a) / 2)
-        yb = round((h - board_height * a) / 2)
-        self._adj = Adjustments(a, xb, yb)
-        self._update_sprites()
-        self._render()
+        self._adj = Adjustments(
+            a,
+            round((canvas_width - board_width * a) / 2),
+            round((canvas_height - board_height * a) / 2)
+            )
+        return (canvas_width, canvas_height)
 
 
     def _generate_sprites(self) -> None:
@@ -211,7 +291,7 @@ class StrandGUI():
         a, xb, yb = self._adj
         self._letters_lookup = {}
         self._letters = pygame.sprite.Group()
-        grid = a * GRID_SIZE
+        grid_x, grid_y = (a * n for n in App.GRID_SIZE)
         for i in range(self._game.board().num_rows()):
             for j in range(self._game.board().num_cols()):
                 pos = Pos(i, j)
@@ -219,44 +299,73 @@ class StrandGUI():
                     pos,
                     self._game.board().get_letter(pos),
                     Specs(
-                        round((j + 1/2) * grid + xb),
+                        round((j + 1/2) * grid_x + xb),
                         round(
-                            (i + 1/2) * grid
-                            + yb + a * HEADER
+                            (i + 1/2) * grid_y
+                            + yb + a * App.HEADER
                             ),
-                        round(ELEMENT_BUFFER * grid),
-                        round(ELEMENT_BUFFER * grid)
+                        round(App.ELEMENT_BUFFER * grid_x),
+                        round(App.ELEMENT_BUFFER * grid_y)
                         )
                     )
                 letter.render()
                 self._letters.add(letter)
                 self._letters_lookup[(i, j)] = letter
 
-        # generate info sprites
+        # generate then render all info sprites
         specs = self._spec_info()
         self._theme = Text(self._game.theme(), specs.theme)
-        self._theme.render()
-        self._message = Text("Good luck!", specs.message)
-        self._message.render()
+        self._message = Text(
+            App.MESSAGE_START,
+            specs.message
+            )
         if self._game.hint_threshold() <= 0:
-            self._hint = Text("HINT", specs.hint, True)
+            self._hint = Text(App.HINT_TEXT, specs.hint)
+            self._hint.border = True
         else:
             self._hint = Meter(
-                "HINT",
+                App.HINT_METER,
                 specs.hint,
                 self._game.hint_threshold(),
                 True
                 )
-        self._hint.render()
         if len(self._game.answers()) == 0:
-            self._found = Text("Found?", specs.found)
+            self._found = Text(App.FOUND_TEXT, specs.found)
         else:
             self._found = Meter(
-                "Found {meter}/{threshold}",
+                App.FOUND_METER,
                 specs.found,
                 len(self._game.answers())
                 )
+        self._theme.render()
+        self._message.render()
+        self._hint.render()
         self._found.render()
+
+
+    def _update_sprites(self) -> None:
+        """ update all sprites after a resizing """
+        # update letters
+        a, xb, yb = self._adj
+        grid_x, grid_y = (a * n for n in App.GRID_SIZE)
+        self._letters.update(
+            (xb, round(yb + a * App.HEADER)),
+            (round(grid_x), round(grid_y)),
+            (
+                round(App.ELEMENT_BUFFER * grid_x),
+                round(App.ELEMENT_BUFFER * grid_y)
+                )
+            )
+        # update info sprites
+        specs = self._spec_info()
+        self._hint.resize(specs.hint)
+        self._hint.render()
+        self._found.resize(specs.found)
+        self._found.render()
+        self._theme.resize(specs.theme)
+        self._theme.render()
+        self._message.resize(specs.message)
+        self._message.render()
 
 
     def _spec_info(self) -> InfoSpecs:
@@ -275,19 +384,21 @@ class StrandGUI():
         left_x = round(xb + 1/2 * max_w)
         right_x = round(xb + 3/2 * max_w)
         # header-specific
-        header_h = a * HEADER
+        header_h = a * App.HEADER
         header_y = round(yb + 1/2 * header_h)
         header_w = round(
-            ELEMENT_BUFFER * min(3 * header_h, max_w)
+            App.ELEMENT_BUFFER
+            * min(App.INFO_AR * header_h, max_w)
             )
-        header_h = round(ELEMENT_BUFFER * header_h)
+        header_h = round(App.ELEMENT_BUFFER * header_h)
         # footer-specific
-        footer_h = a * FOOTER
+        footer_h = a * App.FOOTER
         footer_y = round(canvas_h - yb - 1/2 * footer_h)
         footer_w = round(
-            ELEMENT_BUFFER * min(3 * footer_h, max_w)
+            App.ELEMENT_BUFFER
+            * min(App.INFO_AR * footer_h, max_w)
             )
-        footer_h = round(ELEMENT_BUFFER * footer_h)
+        footer_h = round(App.ELEMENT_BUFFER * footer_h)
 
         return InfoSpecs(
             Specs(left_x, header_y, header_w, header_h),
@@ -297,26 +408,7 @@ class StrandGUI():
             )
 
 
-    def _update_sprites(self) -> None:
-        """ update all sprites after a resizing """
-        # update letters
-        a, xb, yb = self._adj
-        self._letters.update(
-            (xb, round(yb + a * HEADER)),
-            round(a * GRID_SIZE),
-            round(ELEMENT_BUFFER * a * GRID_SIZE)
-            )
-        # update info sprites
-        specs = self._spec_info()
-        self._hint.resize(specs.hint)
-        self._hint.render()
-        self._found.resize(specs.found)
-        self._found.render()
-        self._theme.resize(specs.theme)
-        self._theme.render()
-        self._message.resize(specs.message)
-        self._message.render()
-
+    # USER INPUT METHODS
 
     def play(self) -> None:
         """ Play the game! """
@@ -340,7 +432,10 @@ class StrandGUI():
                 elif (
                     held
                     and event.type == pygame.MOUSEMOTION
-                    and any(abs(n) > 2 for n in event.rel)
+                    and any(
+                            abs(n) > App.MIN_REL
+                            for n in event.rel
+                            )
                     ):
                     # the minimum event.rel was added to
                     # prevent unintentional click-dragging
@@ -358,8 +453,8 @@ class StrandGUI():
                     held = False
                     interrupt = False
                 elif event.type == pygame.VIDEORESIZE:
-                    self._resize(*event.size)
-            self._clock.tick(FRAME_RATE)
+                    self._resize(event.size)
+            self._clock.tick(App.FRAME_RATE)
 
 
     def _quit(self) -> None:
@@ -368,31 +463,86 @@ class StrandGUI():
         sys.exit()
 
 
+    def _resize(self, size: tuple[int, int]) -> None:
+        """
+        process a video resize event with the given size
+        """
+        self._size(size)
+        self._update_sprites()
+        self._render()
+
+
+    def _keydown(self, key: int) -> None:
+        """ process a keydown event with the given key """
+        if key == pygame.K_q:
+            self._quit()
+        elif key == pygame.K_RETURN:
+            self._submitter()
+        elif key == pygame.K_ESCAPE:
+            self._deselecter()
+        elif key == pygame.K_h:
+            self._hinter()
+        self._render()
+
+
+    def _click(self, x: int, y: int) -> None:
+        """ process a mouse click at the position given """
+        if self._hint.rect.collidepoint(x, y):
+            self._hinter()
+        elif self._found.rect.collidepoint(x, y):
+            self._founder()
+        else:
+            for letter in self._letters:
+                if letter.rect.collidepoint(x, y):
+                    self._selecter(letter.position, False)
+                    break
+        self._render()
+
+
+    def _selecting(self, x: int, y: int) -> None:
+        """ process mouse dragging at the position given """
+        for letter in self._letters:
+            if letter.rect.collidepoint(x, y):
+                self._selecter(letter.position, True)
+                break
+        self._render()
+
+
+    def _selected(self) -> None:
+        """ process the end of mouse dragging """
+        self._submitter()
+        self._render()
+
+
+    # GAME PLAY METHODS
+
     def _submitter(self) -> None:
         """ submit a strand """
         if self._game.game_over():
             return
         if self._select is None:
-            self._message.retext(
-                "Nothing selected",
-                TEXT_COLOR
-                )
+            self._message.text = App.MESSAGE_EMPTY_SUBMIT
+            self._message.text_color = App.TEXT_COLOR
             self._message.render()
             return
         info = self._game.submit_strand(self._select)
         if isinstance(info, str):
-            self._message.retext(info, TEXT_COLOR)
+            self._message.text = info
+            self._message.text_color = App.TEXT_COLOR
             self._message.render()
         else:
             word, is_theme = info
             if is_theme:
                 if self._game.game_over():
-                    self._message.retext(
-                        "You won!",
-                        TEXT_COLOR
+                    self._message.text = App.MESSAGE_WIN
+                    self._message.text_color = (
+                        App.TEXT_COLOR
                         )
                 else:
-                    self._message.retext(word, FOUND_COLOR)
+                    self._message.text = word
+                    self._message.text_color = (
+                        App.FOUND_COLOR
+                        )
                 self._message.render()
                 if isinstance(self._found, Meter):
                     self._found.remeter(
@@ -403,11 +553,12 @@ class StrandGUI():
                 for pos in strand.positions():
                     position = (pos.r, pos.c)
                     letter = self._letters_lookup[position]
-                    letter.highlight2 = FOUND_COLOR
+                    letter.highlight2 = App.FOUND_COLOR
                     letter.border = False
                     letter.render()
             else:
-                self._message.retext(word, UNTHEME_COLOR)
+                self._message.text = word
+                self._message.text_color = App.UNTHEME_COLOR
                 self._message.render()
                 if isinstance(self._hint, Meter):
                     self._hint.remeter(
@@ -423,7 +574,8 @@ class StrandGUI():
             return
         info = self._game.use_hint()
         if isinstance(info, str):
-            self._message.retext(info, TEXT_COLOR)
+            self._message.text = info
+            self._message.text_color = App.TEXT_COLOR
             self._message.render()
         else:
             i, b = info
@@ -433,7 +585,7 @@ class StrandGUI():
             for pos in positions:
                 position = (pos.r, pos.c)
                 letter = self._letters_lookup[position]
-                letter.highlight2 = HINT_COLOR
+                letter.highlight2 = App.HINT_COLOR
                 if b and pos in first_last:
                     letter.border = True
                 letter.render()
@@ -508,8 +660,13 @@ class StrandGUI():
             for pos_ in new.positions():
                 position = (pos_.r, pos_.c)
                 letter = self._letters_lookup[position]
-                letter.highlight1 = SELECT_COLOR
+                letter.highlight1 = App.SELECT_COLOR
                 letter.render()
+            self._message.text = (
+                self._game.board().evaluate_strand(new)
+                )
+            self._message.text_color = App.SELECT_COLOR
+            self._message.render()
         self._select = new
 
 
@@ -521,93 +678,55 @@ class StrandGUI():
             len(self._game.answers())
             - len(self._game.found_strands())
             )
-        self._message.retext(
-            f"Only {left} left!",
-            TEXT_COLOR
+        self._message.text = (
+            App.MESSAGE_FOUND.format(left = left)
             )
+        self._message.text_color = App.TEXT_COLOR
         self._message.render()
 
 
-    def _keydown(self, key: int) -> None:
-        """ process a keydown event with the given key """
-        if key == pygame.K_q:
-            self._quit()
-        elif key == pygame.K_RETURN:
-            self._submitter()
-        elif key == pygame.K_ESCAPE:
-            self._deselecter()
-        elif key == pygame.K_h:
-            self._hinter()
-        self._render()
-
-
-    def _click(self, x: int, y: int) -> None:
-        """ process a mouse click at the position given """
-        if self._hint.rect.collidepoint(x, y):
-            self._hinter()
-        elif self._found.rect.collidepoint(x, y):
-            self._founder()
-        else:
-            for letter in self._letters:
-                if letter.rect.collidepoint(x, y):
-                    self._selecter(letter.position, False)
-                    break
-        self._render()
-
-
-    def _selecting(self, x: int, y: int) -> None:
-        """ process mouse dragging at the position given """
-        for letter in self._letters:
-            if letter.rect.collidepoint(x, y):
-                self._selecter(letter.position, True)
-                break
-        self._render()
-
-
-    def _selected(self) -> None:
-        """ process the end of mouse dragging """
-        self._submitter()
-        self._render()
-
+    # DISPLAY DRAWING METHODS
 
     def _render(self) -> None:
         """ render the display """
-        self._canvas.fill(CANVAS_COLOR)
+        self._canvas.fill(App.CANVAS_COLOR)
         self._draw_borders()
         for strand in self._game.found_strands():
-            self._connect(strand, FOUND_COLOR)
+            self._connect(strand, App.FOUND_COLOR)
         if self._select is not None:
-            self._connect(self._select, SELECT_COLOR)
+            self._connect(self._select, App.SELECT_COLOR)
         self._letters.draw(self._canvas)
-        pygame.sprite.Group(
-            self._theme, self._message,
-            self._hint, self._found
-            ).draw(self._canvas)
+        self._theme.draw(self._canvas)
+        self._message.draw(self._canvas)
+        self._hint.draw(self._canvas)
+        self._found.draw(self._canvas)
         pygame.display.update()
 
 
     def _draw_borders(self) -> None:
-        """ draw borders """
+        """
+        draw the borders (helper function for _render)
+        """
         _, xb, yb = self._adj
         w, h = self._canvas.get_size()
         pygame.draw.rect(
             self._canvas,
-            BORDER_COLOR,
+            App.BORDER_COLOR,
             pygame.Rect(0, 0, w, yb)
             )
         pygame.draw.rect(
             self._canvas,
-            BORDER_COLOR,
+            App.BORDER_COLOR,
             pygame.Rect(0, 0, xb, h)
             )
         pygame.draw.rect(
             self._canvas,
-            BORDER_COLOR,
+            App.BORDER_COLOR,
             pygame.Rect(0, h - yb, w, yb)
             )
         pygame.draw.rect(
             self._canvas,
-            BORDER_COLOR,
+            App.BORDER_COLOR,
             pygame.Rect(w - xb, 0, xb, h)
             )
 
@@ -618,37 +737,43 @@ class StrandGUI():
         color: pygame.Color
         ) -> None:
         """
-        draw the connections between letters of a strand
+        draw the connections between letters of a
+        strand (helper method for _render)
 
         Inputs:
             strand (Strand): the strand to draw
                 connections for
-            color (pygame.Color): the color to draw the
-                connections with
+            color (pygame.Color): the color to draw
+                the connections with
         """
-        radius = round(self._adj.a/3 * GRID_SIZE)
-        def __connect(
+        radius = round(
+            App.CONNECT_SCALE
+            * self._adj.a
+            * min(App.GRID_SIZE)
+            )
+        def connect(
             positions: list[PosBase]
             ) -> tuple[int, int]:
             """
-            recursively draw lines between the centers of
-            the letters at each position given
+            recursively draw lines between the centers
+            of the letters at each position given
 
             Input:
                 positions (list[PosBase]): a list of
-                    positions on the board to draw lines
-                    between
+                    positions on the board to draw
+                    lines between
             Output (tuple[int, int]):
                 - The x, y center coordinates of the
                     letter sprite corresponding to the
                     last position in the list.
             """
             if len(positions) == 1:
-                position = (positions[0].r, positions[0].c)
-                letter = self._letters_lookup[position]
+                letter = self._letters_lookup[
+                    positions[0].r, positions[0].c
+                    ]
                 return letter.rect.center
-            start = __connect(positions[:-1])
-            stop = __connect(positions[-1:])
+            start = connect(positions[:-1])
+            stop = connect(positions[-1:])
             pygame.draw.line(
                 self._canvas,
                 color,
@@ -657,4 +782,4 @@ class StrandGUI():
                 radius
                 )
             return stop
-        __connect(strand.positions())
+        connect(strand.positions())

@@ -2,16 +2,13 @@
 Sprites Implementations for StrandsGUI
 """
 
-from typing import NamedTuple
+from typing import NamedTuple, Any
 from string import Formatter
 import pygame
-from gui_files.settings import (
-    TEXT_BUFFER, TEXT_COLOR, CANVAS_COLOR
-    )
 from base import PosBase
 
 
-class Specs(NamedTuple):
+class SpecsBase(NamedTuple):
     """ (x, y, w, h) """
     x: int # x center
     y: int # y center
@@ -19,15 +16,84 @@ class Specs(NamedTuple):
     h: int # heights
 
 
-def set_alpha(
-    color: pygame.Color,
-    a: int
-    ) -> pygame.Color:
-    """
-    return a new pygame.Color object with the same RBG
-    values as `color` but the alpha value is set to `a`.
-    """
-    return pygame.Color(color.r, color.g, color.b, a)
+class Specs(SpecsBase):
+    """ (x, y, w, h) """
+    def __new__(
+        cls, x: int, y: int, w: int, h: int
+        ) -> "Specs":
+        """ verify values first """
+        def check(var: str, val: Any) -> None:
+            """
+            helper function to verify values
+
+            Inputs:
+                var (str): the string name of the
+                    variable being checked
+                val (Any): the value to verify
+            """
+            assert (
+                isinstance(var, str)
+                and var in ["x", "y", "w", "h"]
+                ), (
+                "The argument `var` must be a string "
+                "corresponding to the variable being "
+                "checked."
+                )
+            if not isinstance(val, int):
+                raise TypeError(
+                    f"The attribute `{var}` must be a "
+                    "nonnegative integer."
+                    )
+            if x < 0:
+                raise ValueError(
+                    f"The attribute `{var}` must be a "
+                    "nonnegative integer."
+                    )
+        check("x", x)
+        check("y", y)
+        check("w", w)
+        check("h", h)
+        return super().__new__(cls, x, y, w, h)
+
+
+class SpritesDefaults:
+    """ the default values for sprite attributes """
+
+    # the default border setting
+    BORDER: bool = False
+
+    # the default meter value
+    METER: int = 0
+
+    # the default textform value
+    TEXTFORM: str | None = None
+
+    # the default text color
+    TEXT_COLOR: pygame.Color = pygame.Color("black")
+
+    # the default buffer for text
+    TEXT_BUFFER: float = 1
+
+    # the default color key
+    COLOR_KEY: pygame.Color = pygame.Color("white")
+
+    # the default fill color for Meter objects
+    FILL_COLOR: pygame.Color = pygame.Color("lightgray")
+
+    # the default border color
+    BORDER_COLOR: pygame.Color = pygame.Color("black")
+
+    # the default highlight1 color
+    HIGHLIGHT1: pygame.Color | None = None
+
+    # the default highlight2 color
+    HIGHLIGHT2: pygame.Color | None = None
+
+    # the default ratio for size to corner radius
+    ROUNDING_RATIO: float = 1/12
+
+    # the default line width
+    LINE_WIDTH: int = 2
 
 
 class Text(pygame.sprite.Sprite):
@@ -35,56 +101,51 @@ class Text(pygame.sprite.Sprite):
     class for all text elements in the game
 
     Attributes:
-        image (pygame.Surface): a pygame.Surface object
-            with the sprite image drawn onto it
-        rect (pygame.Rect): a Rect of the same size as
-            `image` to act as a sprite hitbox and to denote
-            its position on the display
-        text (str): the text to display on `image`
-        color (pygame.Color): the color of the text to
-            display
-        border (bool): whether or not to draw a border
-            around the text on `image`
+        image (pygame.Surface)
+        rect (pygame.Rect)
+        text (str)
+        text_color (pygame.Color)
+        border (bool)
+        text_buffer (float)
+        color_key (pygame.Color | None)
+        border_color (pygame.Color)
+        rounding_ratio (float)
+        line_width (int)
     """
 
     image: pygame.Surface
     rect: pygame.Rect
-    text: str
-    color: pygame.Color
-    border: bool
+    _text: str
+    _text_color: pygame.Color
+    _border: bool
+    _text_buffer: float
+    _color_key: pygame.Color | None
+    _border_color: pygame.Color
+    _rounding_ratio: float
+    _line_width: int
 
 
-    def __init__(
-        self,
-        text: str,
-        specs: Specs,
-        border: bool = False
-        ) -> None:
+    def __init__(self, text: str, specs: Specs) -> None:
         """
         constructor
 
         Inputs:
-        - text (str): the text to display
-        - specs (Specs): the x center, y center, width, and
-            height defining the containing rectangle
-        - border (bool): whether or not to box the text
+            text (str): the text to display
+            specs (Specs): the x center, y center, width,
+                and height defining the containing
+                rectangle
         """
         super().__init__()
-        if not isinstance(border, bool):
-            raise TypeError(
-                "The argument `border` must be boolean."
-                )
-        self.border = border
-        self.retext(text, TEXT_COLOR)
+        self.text = text
         self.resize(specs)
 
 
     def _textify(self) -> None:
         """ fit and render the text """
         size = height = round(
-            self.rect.height * TEXT_BUFFER
+            self.rect.height * self.text_buffer
             )
-        width = round(self.rect.width * TEXT_BUFFER)
+        width = round(self.rect.width * self.text_buffer)
         w, h = pygame.font.SysFont(
             None,
             size
@@ -98,7 +159,7 @@ class Text(pygame.sprite.Sprite):
             if size <= 0:
                 break
         text = pygame.font.SysFont(None, size).render(
-            self.text, True, self.color
+            self.text, True, self.text_color
             )
         width, height = tuple(self.rect.size)
         self.image.blit(
@@ -113,21 +174,21 @@ class Text(pygame.sprite.Sprite):
             self.rect.size,
             pygame.SRCALPHA
             )
-        self.image.fill(set_alpha(CANVAS_COLOR, 0))
+        if self.color_key is not None:
+            self.image.fill(self.color_key)
+        self.image.set_colorkey(self.color_key)
 
 
     def _bordify(self) -> None:
         """
         draw a rectangular border with rounded corners
         """
-        rect = self.image.get_rect()
-        border_radius = round(max(1, min(*rect.size) / 12))
         pygame.draw.rect(
             self.image,
-            self.color,
-            rect,
-            2,
-            border_radius = border_radius
+            self.border_color,
+            self.image.get_rect(),
+            self.line_width,
+            round(self.rounding_ratio * min(self.rect.size))
             )
 
 
@@ -137,46 +198,17 @@ class Text(pygame.sprite.Sprite):
         containing the text
 
         Inputs:
-        - specs (Specs): the x center, y center, width,
-            and height defining the containing rectangle
+            specs (Specs): the x center, y center, width,
+                and height defining the containing
+                rectangle
         """
-        if (
-            not isinstance(specs, tuple)
-            or any(not isinstance(n, int) for n in specs)
-            ):
+        if not isinstance(specs, Specs):
             raise TypeError(
-                "The argument `specs` must be of the type \
-                Specs."
+                "The argument `specs` must be a Specs "
+                "object."
                 )
         self.rect = pygame.Rect(0, 0, specs.w, specs.h)
         self.rect.center = (specs.x, specs.y)
-
-
-    def retext(
-        self,
-        text: str,
-        color: pygame.Color | None = None
-        ) -> None:
-        """
-        update the text
-
-        Inputs:
-        - text (str): the text to display
-        - color (pygame.Color | None): the color to change
-            the text to, or None to keep the current color
-        """
-        if not isinstance(text, str):
-            raise TypeError(
-                "The argument `text` must be a string."
-                )
-        self.text = text
-        if color is not None:
-            if not isinstance(color, pygame.Color):
-                raise TypeError(
-                    "The argument `color` must be a \
-                    pygame.Color object or None."
-                    )
-            self.color = color
 
 
     def render(self) -> None:
@@ -187,41 +219,210 @@ class Text(pygame.sprite.Sprite):
         self._textify()
 
 
+    def draw(self, canvas: pygame.Surface) -> None:
+        """ draw the sprite image on the given surface """
+        canvas.blit(self.image, self.rect)
+
+
+    @property
+    def text(self) -> str:
+        """ the text to display on `image` """
+        return self._text
+    @text.setter
+    def text(self, text: str) -> None:
+        """ the text to display on `image` """
+        if not isinstance(text, str):
+            raise TypeError(
+                "The property `text` must be a string."
+                )
+        self._text = text
+
+
+    @property
+    def text_color(self) -> pygame.Color:
+        """ the color of the text to display """
+        return getattr(
+            self, "_text_color", SpritesDefaults.TEXT_COLOR
+            )
+    @text_color.setter
+    def text_color(self, color: pygame.Color) -> None:
+        """ the color of the text to display """
+        if not isinstance(color, pygame.Color):
+            raise TypeError(
+                "The property `text_color` must be a "
+                "pygame.Color object."
+                )
+        self._text_color = color
+
+
+    @property
+    def border(self) -> bool:
+        """ whether or not to draw a border """
+        return getattr(
+            self, "_border", SpritesDefaults.BORDER
+            )
+    @border.setter
+    def border(self, border: bool) -> None:
+        """ whether or not to draw a border """
+        if not isinstance(border, bool):
+            raise TypeError(
+                "The property `border` must be boolean."
+                )
+        self._border = border
+
+
+    @property
+    def text_buffer(self) -> float:
+        """
+        a positive float at most 1 that scales text
+        to add space as a buffer
+        """
+        return getattr(
+            self,
+            "_text_buffer",
+            SpritesDefaults.TEXT_BUFFER
+            )
+    @text_buffer.setter
+    def text_buffer(self, text_buffer: float) -> None:
+        """
+        a positive float at most 1 that scales text
+        to add space as a buffer
+        """
+        if not isinstance(text_buffer, float):
+            raise TypeError(
+                "The property `text_buffer` must be a "
+                "float satisfying `0 < text_buffer <= 1`."
+                )
+        self._text_buffer = text_buffer
+
+
+    @property
+    def color_key(self) -> pygame.Color | None:
+        """ the color set to be transparent """
+        return getattr(
+            self, "_color_key", SpritesDefaults.COLOR_KEY
+            )
+    @color_key.setter
+    def color_key(self, color: pygame.Color | None) -> None:
+        """ the color set to be transparent """
+        if not isinstance(color, pygame.Color):
+            raise TypeError(
+                "The property `color_key` must be a "
+                "pygame.Color object."
+                )
+        self._color_key = color
+
+
+    @property
+    def border_color(self) -> pygame.Color:
+        """ the color of the border, if drawn """
+        return getattr(
+            self,
+            "_border_color",
+            SpritesDefaults.BORDER_COLOR
+            )
+    @border_color.setter
+    def border_color(self, color: pygame.Color) -> None:
+        """ the color of the border, if drawn """
+        if not isinstance(color, pygame.Color):
+            raise TypeError(
+                "The property `border_color` must be a "
+                "pygame.Color object."
+                )
+        self._border_color = color
+
+
+    @property
+    def rounding_ratio(self) -> float:
+        """
+        the ratio of size to corner radius as a
+        nonnegative float no more than 1
+        """
+        return getattr(
+            self,
+            "_rounding_ratio",
+            SpritesDefaults.ROUNDING_RATIO
+            )
+    @rounding_ratio.setter
+    def rounding_ratio(self, rounding_ratio: float) -> None:
+        """
+        the ratio of size to corner radius as a
+        nonnegative float no more than 1
+        """
+        if not isinstance(rounding_ratio, float):
+            raise TypeError(
+                "The property `rounding_ratio` must be a "
+                "float satisfying "
+                "`0 <= rounding_ratio <= 1`."
+                )
+        if not 0 <= rounding_ratio <= 1:
+            raise ValueError(
+                "The property `rounding_ratio` must be a "
+                "float satisfying "
+                "`0 <= rounding_ratio <= 1`."
+                )
+        self._rounding_ratio = rounding_ratio
+
+
+    @property
+    def line_width(self) -> int:
+        """
+        the line width when drawing as a positive integer
+        """
+        return getattr(
+            self,
+            "_line_width",
+            SpritesDefaults.LINE_WIDTH
+            )
+    @line_width.setter
+    def line_width(self, line_width: int) -> None:
+        """
+        the line width when drawing as a positive integer
+        """
+        if not isinstance(line_width, int):
+            raise TypeError(
+                "The property `line_width` must be a "
+                "positive integer."
+                )
+        if line_width <= 0:
+            raise ValueError(
+                "The property `line_width` must be a "
+                "positive integer."
+                )
+        self._line_width = line_width
+
+
 class Letter(Text):
     """
-    class for all letter elements in the game
+    class for all letter elements in the strands game
 
     Attributes:
-        image (pygame.Surface): a pygame.Surface object
-            with the sprite image drawn onto it
-        rect (pygame.Rect): a Rect of the same size as
-            `image` to act as a sprite hitbox and to denote
-            its position on the display
-        text (str): a single character of text to display
-            on `image`
-        color (pygame.Color): the color of the text to
-            display
-        border (bool): whether or not to draw a border
-            around the text on `image`
-        highlight1 (pygame.Color | None): the primary
-            highlight color, or None to default to the
-            secondary highlight color, `highlight2`
-        highlight2 (pygame.Color | None): the secondary
-            highlight color, only used if the primary
-            highlight color, `highlight2`, is None, or
-            None to default to no highlight
-        position (PosBase): the position of the letter on
-            the game board
+        image (pygame.Surface)
+        rect (pygame.Rect)
+        text (str)
+        text_color (pygame.Color)
+        border (bool)
+        text_buffer (float)
+        color_key (pygame.Color | None)
+        border_color (pygame.Color)
+        line_width (int)
+        highlight1 (pygame.Color | None)
+        highlight2 (pygame.Color | None)
+        position (PosBase)
     """
 
     # image: pygame.Surface
     # rect: pygame.Rect
-    # text: str
-    # color: pygame.Color
-    # border: bool
-    highlight1: pygame.Color | None
-    highlight2: pygame.Color | None
-    position: PosBase
+    # _text: str
+    # _text_color: pygame.Color
+    # _border: bool
+    # _text_buffer: float
+    # _color_key: pygame.Color
+    # _border_color: pygame.Color
+    # _line_width: int
+    _highlight1: pygame.Color | None
+    _highlight2: pygame.Color | None
+    _position: PosBase
 
 
     def __init__(
@@ -231,20 +432,14 @@ class Letter(Text):
         constructor
 
         Inputs:
-        - pos (PosBase): the position on the board
-        - ch (str): the letter to display
-        - specs (Specs): the x center, y center, width,
-            and height defining the containing rectangle
+            pos (PosBase): the position on the board
+            ch (str): the letter to display
+            specs (Specs): the x center, y center, width,
+                and height defining the containing
+                rectangle
         """
         super().__init__(ch, specs)
-        if not isinstance(pos, PosBase):
-            raise TypeError(
-                "The argument `pos` must be a PosBase \
-                object."
-                )
         self.position = pos
-        self.highlight1 = None
-        self.highlight2 = None
 
 
     def update(
@@ -273,45 +468,40 @@ class Letter(Text):
                 in that order, or, if both values are the
                 same, one integer for both
         """
-        if (
-            isinstance(offset, tuple)
-            and len(offset) == 2
-            and all(isinstance(n, int) for n in offset)
-            ):
-            xb, yb = offset
-        elif isinstance(offset, int):
-            xb = yb = offset
-        else:
-            raise ValueError(
-                "The argument `offset` must be an "
-                "integer or a tuple of two integers."
+        def check(var: str, val: Any) -> tuple[int, int]:
+            """
+            helper function to verify values
+
+            Inputs:
+                var (str): the string name of the
+                    variable being checked
+                val (Any): the value to verify
+            """
+            assert (
+                isinstance(var, str)
+                and var in ["offset", "spacing", "size"]
+                ), (
+                "The argument `var` must be a string "
+                "corresponding to the variable being "
+                "checked."
                 )
-        if (
-            isinstance(spacing, tuple)
-            and len(spacing) == 2
-            and all(isinstance(n, int) for n in spacing)
-            ):
-            sx, sy = spacing
-        elif isinstance(spacing, int):
-            sx = sy = spacing
-        else:
-            raise ValueError(
-                "The argument `spacing` must be an "
-                "integer or a tuple of two integers."
-                )
-        if (
-            isinstance(size, tuple)
-            and len(size) == 2
-            and all(isinstance(n, int) for n in size)
-            ):
-            w, h = size
-        elif isinstance(size, int):
-            w = h = size
-        else:
-            raise ValueError(
-                "The argument `size` must be an "
-                "integer or a tuple of two integers."
-                )
+            if (
+                isinstance(val, tuple)
+                and len(val) == 2
+                and all(isinstance(n, int) for n in val)
+                ):
+                pass
+            elif isinstance(val, int):
+                val = (val, val)
+            else:
+                raise ValueError(
+                    f"The argument `{var}` must be an "
+                    "integer or a tuple of two integers."
+                    )
+            return val
+        xb, yb = check("offset", offset)
+        sx, sy = check("spacing", spacing)
+        w, h = check("size", size)
         self.resize(Specs(
             round(xb + (self.position.c + 1/2) * sx),
             round(yb + (self.position.r + 1/2) * sy),
@@ -329,47 +519,21 @@ class Letter(Text):
         else:
             highlight = None
         if highlight is not None:
-            pygame.draw.circle(
+            pygame.draw.ellipse(
                 self.image,
                 highlight,
-                self.image.get_rect().center,
-                1/2 * min(self.rect.size)
+                self.image.get_rect()
                 )
 
 
     def _bordify(self) -> None:
         """ draw a circular border """
-        pygame.draw.circle(
+        pygame.draw.ellipse(
             self.image,
-            self.color,
-            self.image.get_rect().center,
-            1/2 * max(self.rect.size),
-            2
+            self.border_color,
+            self.image.get_rect(),
+            self.line_width
             )
-
-
-    def retext(
-        self,
-        text: str,
-        color: pygame.Color | None = None
-        ) -> None:
-        """
-        update the text
-
-        Inputs:
-        - text (str): a single character of text to display
-        - color (pygame.Color | None): the color to change
-            the text to, or None to keep the current color
-
-        Raises ValueError if the inputted string `text` has
-        more than 1 character.
-        """
-        super().retext(text, color)
-        if len(text) > 1:
-            raise ValueError(
-                "Letter objects may not contain more than \
-                1 character of text."
-                )
 
 
     def render(self) -> None:
@@ -381,42 +545,141 @@ class Letter(Text):
         self._textify()
 
 
+    @property
+    def highlight1(self) -> pygame.Color | None:
+        """
+        the primary highlight color, or None to default
+        to the secondary highlight color, `highlight2`
+        """
+        return getattr(
+            self, "_highlight1", SpritesDefaults.HIGHLIGHT1
+            )
+    @highlight1.setter
+    def highlight1(
+        self,
+        color: pygame.Color | None
+        ) -> None:
+        """
+        the primary highlight color, or None to default
+        to the secondary highlight color, `highlight2`
+        """
+        if (
+            color is not None
+            and not isinstance(color, pygame.Color)
+            ):
+            raise TypeError(
+                "The property `highlight1` must be a "
+                "pygame.Color object or None."
+                )
+        self._highlight1 = color
+
+
+    @property
+    def highlight2(self) -> pygame.Color | None:
+        """
+        the secondary highlight color, only used if
+        the primary highlight color, `highlight2`,
+        is None, or None to default to no highlight
+        """
+        return getattr(
+            self, "_highlight2", SpritesDefaults.HIGHLIGHT2
+            )
+    @highlight2.setter
+    def highlight2(
+        self,
+        color: pygame.Color | None
+        ) -> None:
+        """
+        the secondary highlight color, only used if
+        the primary highlight color, `highlight2`,
+        is None, or None to default to no highlight
+        """
+        if (
+            color is not None
+            and not isinstance(color, pygame.Color)
+            ):
+            raise TypeError(
+                "The property `highlight2` must be a "
+                "pygame.Color object or None."
+                )
+        self._highlight2 = color
+
+
+    @property
+    def text(self) -> str:
+        """
+        a single character of text to display on `image`
+        """
+        return self._text
+    @text.setter
+    def text(self, text: str) -> None:
+        """
+        a single character of text to display on `image`
+        """
+        if not isinstance(text, str):
+            raise TypeError(
+                "The property `text` must be a single "
+                "character string."
+                )
+        if len(text) > 1:
+            raise ValueError(
+                "The property `text` must be a single "
+                "character string."
+                )
+        self._text = text
+
+
+    @property
+    def position(self) -> PosBase:
+        """ the position of the letter on the game board """
+        return self._position
+    @position.setter
+    def position(self, position: PosBase) -> None:
+        if not isinstance(position, PosBase):
+            raise ValueError(
+                "The property `position` must be a "
+                "PosBase object."
+                )
+        self._position = position
+
+
 class Meter(Text):
     """
     class for a meter element in the game
 
     Attributes:
-        image (pygame.Surface): a pygame.Surface object
-            with the sprite image drawn onto it
-        rect (pygame.Rect): a Rect of the same size as
-            `image` to act as a sprite hitbox and to denote
-            its position on the display
-        text (str): the text to display on `image`
-        color (pygame.Color): the color of the text to
-            display
-        border (bool): whether or not to draw a border
-            around the text on `image`
-        textform (str | None): a string with the formatting
-            parameters 'meter' and 'threshold' used to
-            update `text` with the current meter value, or
-            None if `text` is not used to display the
-            current meter values
-        meter (int): the meter value as a nonnegative
-            integer less than `threshold`
-        threshold (int): a positive integer threshold
-        use_bar (bool): whether or not to show the current
-            meter value as a loading bar
+        image (pygame.Surface)
+        rect (pygame.Rect)
+        text (str)
+        text_color (pygame.Color)
+        border (bool)
+        text_buffer (float)
+        color_key (pygame.Color | None)
+        border_color (pygame.Color)
+        rounding_ratio (float)
+        line_width (int)
+        textform (str | None)
+        meter (int)
+        threshold (int)
+        use_bar (bool)
+        fill_color (pygame.Color)
     """
 
     # image: pygame.Surface
     # rect: pygame.Rect
-    # text: str
-    # color: pygame.Color
-    # border: bool
-    textform: str | None
-    meter: int
-    threshold: int
-    use_bar: bool
+    # _text: str
+    # _text_color: pygame.Color
+    # _border: bool
+    # _text_buffer: float
+    # _color_key: pygame.Color
+    # _border_color: pygame.Color
+    # _rounding_ratio: float
+    # _line_width: int
+    _textform: str | None
+    _meter: int
+    _threshold: int
+    _use_bar: bool
+    _fill_color: pygame.Color
 
 
     def __init__(
@@ -430,42 +693,25 @@ class Meter(Text):
         constructor
 
         Inputs:
-        - text (str): the text to display
-        - specs (Specs): the x center, y center, width,
-            and height defining the containing rectangle
-        - threshold (int): a positive integer representing
-            the meter threshold
-        - use_bar (bool): whether or not to show a loading
-            bar
-
-        Raises ValueError if the argument `threshold` is
-        not positive.
+            text (str): the text to display, optionally
+                including the formatting parameters
+                'meter' and 'threshold' to update the
+                text with the current progress
+            specs (Specs): the x center, y center, width,
+                and height defining the containing
+                rectangle
+            threshold (int): a positive integer
+                representing the meter threshold
+            use_bar (bool): whether or not to show a
+                loading bar
         """
         super().__init__(text, specs)
-        if not isinstance(use_bar, bool):
-            raise TypeError(
-                "The argument `use_bar` must be boolean."
-                )
         self.use_bar = use_bar
-        if not isinstance(threshold, int):
-            raise TypeError(
-                "The argument `threshold` must be a \
-                positive integer."
-                )
-        if not threshold > 0:
-            raise ValueError(
-                "The argument `threshold` must be a \
-                positive integer."
-                )
         self.threshold = threshold
-        parameters = set(
-            field for _, field, _, _
-            in Formatter().parse(text)
-            )
-        if parameters == {'meter', 'threshold'}:
+        try:
             self.textform = text
-        else:
-            self.textform = None
+        except ValueError:
+            pass
         self.remeter(0)
 
 
@@ -474,18 +720,16 @@ class Meter(Text):
         update the meter
 
         If the argument `meter` is greater than
-        `threshold`, then `meter` is updated
-        to match the `threshold`. If the argument `meter`
-        is less than 0, then `meter` is updated to be 0.
+        `threshold`, then `meter` is updated to match
+        the `threshold`. If the argument `meter` is
+        less than 0, then `meter` is updated to be 0.
         """
-        assert isinstance(meter, int), \
-            "The argument `progress` must be an integer."
         self.meter = max(min(meter, self.threshold), 0)
         if self.textform is not None:
-            self.retext(self.textform.format(
+            self.text = self.textform.format(
                 meter = self.meter,
                 threshold = self.threshold
-            ))
+                )
 
 
     def render(self) -> None:
@@ -503,26 +747,144 @@ class Meter(Text):
         rect = self.image.get_rect()
         fill = rect.scale_by(self.meter / self.threshold, 1)
         fill.topleft = rect.topleft
-        border_radius = round(max(1, min(*rect.size) / 12))
+        border_radius = round(
+            self.rounding_ratio * min(rect.size)
+            )
         if self.meter == self.threshold:
             pygame.draw.rect(
                 self.image,
-                set_alpha(self.color, 128),
+                self.fill_color,
                 fill,
                 border_radius = border_radius
                 )
         else:
             pygame.draw.rect(
                 self.image,
-                set_alpha(self.color, 128),
+                self.fill_color,
                 fill,
                 border_top_left_radius = border_radius,
                 border_bottom_left_radius = border_radius
                 )
-        pygame.draw.rect(
-            self.image,
-            self.color,
-            rect,
-            2,
-            border_radius = border_radius
+        self._bordify()
+
+
+    @property
+    def textform(self) -> str | None:
+        """
+        a string with the formatting parameters 'meter'
+        and 'threshold' used to update `text` with the
+        current meter value, or None if `text` is not used
+        to display the current meter values
+        """
+        return getattr(
+            self, "_textform", SpritesDefaults.TEXTFORM
             )
+    @textform.setter
+    def textform(self, textform: str) -> None:
+        """
+        a string with the formatting parameters 'meter'
+        and 'threshold' used to update `text` with the
+        current meter value, or None if `text` is not used
+        to display the current meter values
+        """
+        if not isinstance(textform, str):
+            raise TypeError(
+                "The property `textform` must be a "
+                "string with the parameters `meter` and "
+                "`threshold` or None."
+                )
+        parameters = set(
+            field for _, field, _, _
+            in Formatter().parse(textform)
+            )
+        if parameters == {'meter', 'threshold'}:
+            self._textform = textform
+        else:
+            raise ValueError(
+                "The property `textform` must be a "
+                "string with the parameters `meter` and "
+                "`threshold` or None."
+                )
+
+
+    @property
+    def meter(self) -> int:
+        """
+        the meter value as a nonnegative integer no more
+        than `threshold`
+        """
+        return getattr(
+            self, "_meter", SpritesDefaults.METER
+            )
+    @meter.setter
+    def meter(self, meter: int) -> None:
+        """
+        the meter value as a nonnegative integer no more
+        than `threshold`
+        """
+        if not isinstance(meter, int):
+            raise TypeError(
+                "The property `meter` must be a "
+                "nonnegative integer no more than "
+                "the property `threshold`."
+                )
+        if meter < 0 or meter > self.threshold:
+            raise ValueError(
+                "The property `meter` must be a "
+                "nonnegative integer no more than "
+                "the property `threshold`."
+                )
+        self._meter = meter
+
+
+    @property
+    def threshold(self) -> int:
+        """ a positive integer threshold """
+        return self._threshold
+    @threshold.setter
+    def threshold(self, threshold: int) -> None:
+        """ a positive integer threshold """
+        if not isinstance(threshold, int):
+            raise TypeError(
+                "The property `threshold` must be a "
+                "positive integer no less than meter."
+                )
+        if threshold <= 0 or self.meter > threshold:
+            raise ValueError(
+                "The property `threshold` must be a "
+                "positive integer no less than meter."
+                )
+        self._threshold = threshold
+
+
+    @property
+    def use_bar(self) -> bool:
+        """
+        whether or not to show the current meter
+        value as a loading bar
+        """
+        return self._use_bar
+    @use_bar.setter
+    def use_bar(self, use_bar: bool) -> None:
+        if not isinstance(use_bar, bool):
+            raise TypeError(
+                "The property `use_bar` must be boolean."
+                )
+        self._use_bar = use_bar
+
+
+    @property
+    def fill_color(self) -> pygame.Color:
+        """ the color to fill the loading bar with """
+        return getattr(
+            self, "_fill_color", SpritesDefaults.FILL_COLOR
+            )
+    @fill_color.setter
+    def fill_color(self, color: pygame.Color) -> None:
+        """ the color to fill the loading bar with """
+        if not isinstance(color, pygame.Color):
+            raise TypeError(
+                "The property `fill_color` must be a "
+                "pygame.Color object."
+                )
+        self._fill_color = color
