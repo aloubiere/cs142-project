@@ -3,10 +3,12 @@ Strands TUI Implementation
 """
 # Vedat
 
-import sys
+import random
 import curses
+from pathlib import Path
+import click
 from base import StrandsGameBase, BoardBase, Step, PosBase
-from fakes import StrandsGameFake
+from strands import StrandsGame
 from finals.pos import Pos
 from finals.strand import Strand
 
@@ -53,7 +55,7 @@ INTERCARDINAL: dict[tuple[str, int], Step] = {
 def build_found_map(
     game: StrandsGameBase,
 ) -> dict[tuple[int, int], int]:
-    """Map (row, col) -> strand index for all found strand positions."""
+    """ map (row, col) to strand index for all found strand positions """
     result: dict[tuple[int, int], int] = {}
     for i, strand in enumerate(game.found_strands()):
         for pos in strand.positions():
@@ -64,7 +66,7 @@ def build_found_map(
 def build_hint_sets(
     game: StrandsGameBase,
 ) -> tuple[set[tuple[int, int]], set[tuple[int, int]]]:
-    """Return (hint_positions, hint_endpoints) sets for active hint."""
+    """ return hint positions and endpoints for the active hint """
     hint = game.active_hint()
     if hint is None:
         return set(), set()
@@ -87,7 +89,17 @@ def cell_attr(
     sel_set: set[tuple[int, int]],
     hints: tuple[set[tuple[int, int]], set[tuple[int, int]]],
 ) -> int:
-    """Return display attribute for a board cell."""
+    """
+    return the display attribute for a board cell at (r, c)
+
+    Inputs:
+        found_map (dict): mapping of (row, col) to strand index
+        sel_set (set): positions in the current selection
+        hints (tuple): (hint_positions, hint_endpoints) sets
+
+    Returns (int):
+        curses attribute for rendering the cell
+    """
     hint_set, hint_ends = hints
     if (r, c) in sel_set:
         return curses.color_pair(PAIR_SELECTION) | curses.A_BOLD
@@ -107,7 +119,7 @@ def draw_connection(
     pos2: PosBase,
     attr: int,
 ) -> None:
-    """Draw a connector between two adjacent board positions."""
+    """ draw a connector between two adjacent board positions """
     r1, c1 = pos1.r, pos1.c
     r2, c2 = pos2.r, pos2.c
     top_r = min(r1, r2)
@@ -131,7 +143,7 @@ def draw_strand_connections(
     positions: list[PosBase],
     attr: int,
 ) -> None:
-    """Draw connectors between consecutive positions in a strand."""
+    """ draw connectors between consecutive positions in a strand """
     for i in range(len(positions) - 1):
         draw_connection(stdscr, positions[i], positions[i + 1], attr)
 
@@ -140,7 +152,7 @@ def draw_found_connections(
     stdscr: curses.window,
     game: StrandsGameBase,
 ) -> None:
-    """Draw connections for all found strands."""
+    """ draw connections for all found strands """
     for i, strand in enumerate(game.found_strands()):
         attr = curses.color_pair(i % NUM_COLORS + 1) | curses.A_BOLD
         draw_strand_connections(stdscr, strand.positions(), attr)
@@ -153,7 +165,7 @@ def _draw_board_cells(
     sel_set: set[tuple[int, int]],
     cursor: PosBase,
 ) -> None:
-    """Draw all board cells with appropriate colors and cursor."""
+    """ draw all board cells with appropriate colors and cursor """
     found_map = build_found_map(game)
     hints = build_hint_sets(game)
     for r in range(board.num_rows()):
@@ -174,7 +186,7 @@ def draw_board(
     cursor: PosBase,
     selection: list[PosBase],
 ) -> None:
-    """Draw the letter grid with strands, selection, hints, cursor."""
+    """ draw the letter grid with strands, selection, hints, and cursor """
     sel_set = {(p.r, p.c) for p in selection}
     _draw_board_cells(stdscr, board, game, sel_set, cursor)
     draw_found_connections(stdscr, game)
@@ -195,7 +207,7 @@ def draw(
     selection: list[PosBase],
     status: str,
 ) -> None:
-    """Redraw the entire screen."""
+    """ redraw the entire screen """
     stdscr.clear()
     board = game.board()
     stdscr.addstr(0, 0, NAV_RULES)
@@ -210,7 +222,10 @@ def draw(
         stdscr.addstr(3, 0, status)
     draw_board(stdscr, board, game, cursor, selection)
     controls_row = BOARD_START_ROW + board.num_rows() * ROW_HEIGHT + 1
-    stdscr.addstr(controls_row, 0, CONTROLS)
+    try:
+        stdscr.addstr(controls_row, 0, CONTROLS)
+    except curses.error:
+        pass
     stdscr.refresh()
 
 
@@ -219,7 +234,7 @@ def _draw_show_cells(
     board: BoardBase,
     all_map: dict[tuple[int, int], int],
 ) -> None:
-    """Draw board cells for show mode with strand colors."""
+    """ draw board cells for show mode with strand colors """
     for r in range(board.num_rows()):
         for c in range(board.num_cols()):
             letter = board.get_letter(Pos(r, c)).upper()
@@ -235,7 +250,7 @@ def _draw_show_cells(
 
 
 def draw_show(stdscr: curses.window, game: StrandsGameBase) -> None:
-    """Draw all answer strands for show mode."""
+    """ draw all answer strands for show mode """
     stdscr.clear()
     board = game.board()
     stdscr.addstr(0, 0, f"Theme: {game.theme()}", curses.A_BOLD)
@@ -249,7 +264,10 @@ def draw_show(stdscr: curses.window, game: StrandsGameBase) -> None:
         attr = curses.color_pair(i % NUM_COLORS + 1) | curses.A_BOLD
         draw_strand_connections(stdscr, strand.positions(), attr)
     controls_row = BOARD_START_ROW + board.num_rows() * ROW_HEIGHT + 1
-    stdscr.addstr(controls_row, 0, "[q] Quit")
+    try:
+        stdscr.addstr(controls_row, 0, "[q] Quit")
+    except curses.error:
+        pass
     stdscr.refresh()
 
 
@@ -258,7 +276,7 @@ def try_move(
     step: Step,
     board: BoardBase,
 ) -> PosBase:
-    """Move cursor one step if within bounds, else return current."""
+    """ move cursor one step if within bounds, else return current position """
     new_pos = cursor.take_step(step)
     if 0 <= new_pos.r < board.num_rows():
         if 0 <= new_pos.c < board.num_cols():
@@ -270,7 +288,7 @@ def update_selection(
     selection: list[PosBase],
     new_pos: PosBase,
 ) -> list[PosBase]:
-    """Extend or truncate selection based on cursor movement."""
+    """ extend or truncate the selection based on cursor movement """
     for i, pos in enumerate(selection):
         if pos == new_pos:
             return selection[:i + 1]
@@ -280,7 +298,7 @@ def update_selection(
 
 
 def selection_to_strand(selection: list[PosBase]) -> Strand:
-    """Build a Strand from a list of positions."""
+    """ build a Strand from a list of positions """
     steps = [
         selection[i].step_to(selection[i + 1])
         for i in range(len(selection) - 1)
@@ -289,7 +307,7 @@ def selection_to_strand(selection: list[PosBase]) -> Strand:
 
 
 def get_step(key: int, pending: str | None) -> Step | None:
-    """Return movement step from key and pending shift state."""
+    """ return movement step from key and pending shift state """
     if key in CARDINAL_STEPS:
         return CARDINAL_STEPS[key]
     if pending is not None and (pending, key) in INTERCARDINAL:
@@ -298,7 +316,7 @@ def get_step(key: int, pending: str | None) -> Step | None:
 
 
 def format_hint(result: tuple[int, bool] | str) -> str:
-    """Format hint result as a status message."""
+    """ format a hint result as a status message """
     if isinstance(result, str):
         return result
     _, show_ends = result
@@ -310,20 +328,14 @@ def _handle_enter(
     cursor: PosBase,
     selection: list[PosBase],
 ) -> tuple[PosBase, list[PosBase], str | None, str]:
-    """Handle Enter: start selection at cursor or submit strand."""
+    """
+    handle Enter: start a selection at the cursor or submit the strand
+
+    Returns (tuple):
+        (cursor, selection, pending, status)
+    """
     if not selection:
         return cursor, [cursor], None, ""
-    submitted = {(p.r, p.c) for p in selection}
-    start = (selection[0].r, selection[0].c)
-    for _, ans_strand in game.answers():
-        if (ans_strand.start.r, ans_strand.start.c) != start:
-            continue
-        ans_pos = {(p.r, p.c) for p in ans_strand.positions()}
-        if submitted < ans_pos:
-            return cursor, selection, None, "Keep selecting..."
-        if submitted != ans_pos:
-            return cursor, [], None, "Wrong word"
-        break
     strand = selection_to_strand(selection)
     result = game.submit_strand(strand)
     if isinstance(result, tuple):
@@ -341,7 +353,16 @@ def handle_key(
     selection: list[PosBase],
     pending: str | None,
 ) -> tuple[bool, PosBase, list[PosBase], str | None, str]:
-    """Handle a keypress. Returns (quit, cursor, selection, pending, status)."""
+    """
+    handle a keypress and update game state
+
+    Inputs:
+        key (int): the keycode from getch()
+        pending (str | None): shift direction waiting for a second key
+
+    Returns (tuple):
+        (quit, cursor, selection, pending, status)
+    """
     new_pending = pending
     new_status = ""
     new_cursor = cursor
@@ -358,10 +379,7 @@ def handle_key(
             game, cursor, selection
         )
     elif key == ord('h'):
-        if game.hint_meter() >= game.hint_threshold():
-            new_status = format_hint(game.use_hint())
-        else:
-            new_status = "No hint yet"
+        new_status = format_hint(game.use_hint())
     elif key in SHIFT_PENDING:
         new_pending = SHIFT_PENDING[key]
     else:
@@ -374,14 +392,14 @@ def handle_key(
 
 
 def show_mode(stdscr: curses.window, game: StrandsGameBase) -> None:
-    """Display all answer strands. Press q to exit."""
+    """ display all answer strands and wait for q to exit """
     draw_show(stdscr, game)
     while stdscr.getch() != ord('q'):
         pass
 
 
 def play_mode(stdscr: curses.window, game: StrandsGameBase) -> None:
-    """Main play event loop."""
+    """ main play event loop """
     cursor: PosBase = Pos(0, 0)
     selection: list[PosBase] = []
     pending: str | None = None
@@ -400,8 +418,20 @@ def play_mode(stdscr: curses.window, game: StrandsGameBase) -> None:
             pass
 
 
-def main(stdscr: curses.window) -> None:
-    """Main curses entry point."""
+def main(
+    stdscr: curses.window,
+    game_file: str,
+    hint_threshold: int,
+    show: bool,
+) -> None:
+    """
+    initialize curses and start the game
+
+    Inputs:
+        game_file (str): path to the board file
+        hint_threshold (int): words found before hints are available
+        show (bool): if True, show all answers instead of playing
+    """
     curses.start_color()
     curses.use_default_colors()
     curses.curs_set(0)
@@ -411,15 +441,32 @@ def main(stdscr: curses.window) -> None:
     curses.init_pair(PAIR_SELECTION, curses.COLOR_WHITE, -1)
     curses.init_pair(PAIR_HINT, curses.COLOR_YELLOW, -1)
     curses.init_pair(PAIR_HINT_ENDS, curses.COLOR_RED, -1)
-    game: StrandsGameBase = StrandsGameFake(sys.argv[2], 3)
-    if sys.argv[1] == "show":
+    game: StrandsGameBase = StrandsGame(game_file, hint_threshold)
+    if show:
         show_mode(stdscr, game)
     else:
         play_mode(stdscr, game)
 
 
+@click.command()
+@click.option("--show", is_flag=True, default=False, help="Show answers.")
+@click.option("-g", "--game", "game_name", default=None, help="Game name.")
+@click.option(
+    "-h", "--hint", "hint_threshold", default=3, help="Hint threshold."
+)
+def run(
+    show: bool = False,
+    game_name: str | None = None,
+    hint_threshold: int = 3,
+) -> None:
+    """Play the Strands TUI."""
+    if game_name is None:
+        boards = list(Path("boards").glob("*.txt"))
+        game_file = str(random.choice(boards))
+    else:
+        game_file = f"boards/{game_name}.txt"
+    curses.wrapper(lambda stdscr: main(stdscr, game_file, hint_threshold, show))
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 3 or sys.argv[1] not in ("play", "show"):
-        print("Usage: python3 tui.py [play|show] <gamefile>")
-        sys.exit(1)
-    curses.wrapper(main)
+    run()
