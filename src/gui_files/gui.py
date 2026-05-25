@@ -5,12 +5,31 @@ Strands GUI Implementation
 
 import sys
 from typing import NamedTuple
+from copy import deepcopy
+from numpy import ndindex
 import pygame
 from base import (
     StrandBase, StrandsGameBase, PosBase
     )
 from strands import Pos, Strand, StrandsGame
-from gui_files.sprites import Text, Letter, Meter, Specs
+from gui_files.sprites import (
+    TextSprite, LetterSprite, MeterSprite, Specs, GridSpecs
+    )
+
+
+class Adjustments(NamedTuple):
+    """ (a, xb, yb) """
+    a: float # scaling factor
+    xb: int # x border size
+    yb: int # y border size
+
+
+class InfoSpecs(NamedTuple):
+    """ (theme, message, hint, found) """
+    theme: Specs
+    message: Specs
+    hint: Specs
+    found: Specs
 
 
 class App:
@@ -43,34 +62,39 @@ class App:
     BORDER: tuple[int, int] = (25, 25)
 
     # used by StrandsGUI to scale sprites to add space
-    # between and around sprites in the pygame window
-    ELEMENT_BUFFER: float = 1 - 1/4
+    # between and around info sprites in the pygame window
+    INFO_ELEMENT_BUFFER: tuple[float, float] = (7/8, 3/4)
 
-    # the default aspect ratio for info sprites
-    INFO_AR: float = 3
+    # used by StrandsGUI to scale sprites to add space
+    # between and around letter sprites in the pygame
+    # window
+    GRID_ELEMENT_BUFFER: tuple[float, float] = (4/5, 4/5)
 
-    # the starting text for the message sprite
+    # the starting text2 for the message sprite
     MESSAGE_START: str = "Good luck!"
 
-    # the winning text for the message sprite
+    # the winning text2 for the message sprite
     MESSAGE_WIN: str = "You win!"
 
-    # the text if submitting nothing for the message sprite
-    MESSAGE_EMPTY_SUBMIT: str = "Nothing selected"
+    # the text2 if submitting nothing for the message sprite
+    MESSAGE_EMPTY: str = "Nothing selected"
 
-    # the text if clicking on the found sprite
+    # the text2 if clicking on the found sprite
     MESSAGE_FOUND: str = "Only {left} left!"
 
-    # the text for the hint sprite if it is a Text object
+    # the default aspect ratio for the hint sprite
+    HINT_AR: float = 3.5
+
+    # the text2 for the hint sprite if it is a Text object
     HINT_TEXT: str = "HINT"
 
-    # the text for the hint sprite if it is a Meter object
+    # the text2 for the hint sprite if it is a Meter object
     HINT_METER: str = "HINT"
 
-    # the text for the found sprite if it is a Text object
+    # the text2 for the found sprite if it is a Text object
     FOUND_TEXT: str = "Found?"
 
-    # the text for the found sprite if it is a Meter object
+    # the text2 for the found sprite if it is a Meter object
     FOUND_METER: str = "Found {meter}/{threshold}"
 
     # the scaling factor for the strand connection lines
@@ -79,14 +103,14 @@ class App:
     # the background color of the canvas
     CANVAS_COLOR: pygame.Color = pygame.Color("white")
 
-    # the default color of text
+    # the default color of text2
     TEXT_COLOR: pygame.Color = pygame.Color("black")
 
     # the color used to show selected strands
     SELECT_COLOR: pygame.Color = pygame.Color("lightgray")
 
     # the color used to show dictionary words when found
-    UNTHEME_COLOR: pygame.Color = pygame.Color("black")
+    OTHER_COLOR: pygame.Color = pygame.Color("black")
 
     # the color used to show active hints
     HINT_COLOR: pygame.Color = pygame.Color("lavender")
@@ -96,21 +120,6 @@ class App:
 
     # the color of the border around the board
     BORDER_COLOR: pygame.Color = pygame.Color("snow2")
-
-
-class Adjustments(NamedTuple):
-    """ (a, xb, yb) """
-    a: float # scaling factor
-    xb: int # x border size
-    yb: int # y border size
-
-
-class InfoSpecs(NamedTuple):
-    """ (theme, message, hint, found) """
-    theme: Specs
-    message: Specs
-    hint: Specs
-    found: Specs
 
 
 class StrandGUI():
@@ -132,26 +141,29 @@ class StrandGUI():
     _game: StrandsGameBase
 
     # the currently selected strand, if any
-    _select: StrandBase | None
+    _selection: StrandBase | None
 
-    # a sprite group for all the letters on the board
-    _letters: pygame.sprite.Group
+    # a list of all the letters on the board
+    # decided to use a list because type checking
+    # does not work well for pygame sprite groups
+    _letters: list[LetterSprite]
 
     # used for looking up letters by their position
-    _letters_lookup: dict[tuple[int, int], Letter]
+    _letters_lookup: dict[tuple[int, int], LetterSprite]
 
     # the hint button sprite
-    _hint: Meter | Text
+    _hint: MeterSprite | TextSprite
 
     # a sprite for displaying game messages
-    _message: Text
+    _message: TextSprite
 
     # a sprite for displaying the game progress
-    # the number of theme words found and the total to find
-    _found: Meter | Text
+    # the number of theme words found and the total
+    # to find
+    _found: MeterSprite | TextSprite
 
     # a sprite for displaying the game theme
-    _theme: Text
+    _theme: TextSprite
 
 
     def __init__(
@@ -175,22 +187,26 @@ class StrandGUI():
         """
         if not isinstance(mode, bool):
             raise TypeError(
-                "The argument `mode` must be boolean."
+                "The argument `mode` must be boolean. "
+                f"The type is {type(mode)}."
                 )
         if not isinstance(game, str):
             raise TypeError(
-                "The argument `game` must be a string."
+                "The argument `game` must be a string. "
+                f"The type is {type(game)}."
                 )
         if hint_threshold is not None:
             if not isinstance(hint_threshold, int):
                 raise TypeError(
                     "The argument `hint_threshold` must "
-                    "be a nonnegative integer."
+                    "be a nonnegative integer. The type "
+                    f"is {type(hint_threshold)}."
                     )
             if hint_threshold < 0:
                 raise ValueError(
                     "The argument `hint_threshold` must "
-                    "be a nonnegative integer."
+                    "be a nonnegative integer. The value "
+                    f"is {hint_threshold}."
                     )
             self._game = StrandsGame(game, hint_threshold)
         else:
@@ -202,12 +218,12 @@ class StrandGUI():
             pygame.RESIZABLE
             )
         self._clock = pygame.time.Clock()
-        self._select = None
+        self._selection = None
         self._generate_sprites()
         if mode:
             for _, strand in self._game.answers():
-                self._select = strand
-                self._submitter()
+                self._selection = strand
+                self._submit()
 
 
     # SIZING METHODS
@@ -217,7 +233,8 @@ class StrandGUI():
         size: tuple[int, int] | None = None
         ) -> tuple[int, int]:
         """
-        scale the canvas and/or board
+        scale the canvas and/or board and update the
+        attribute `_adj` accordingly
 
         Inputs:
             size (tuple[int, int] | None): the size of the
@@ -236,8 +253,8 @@ class StrandGUI():
         0.
 
         The calculated scaling factor, x border, and y
-        border are saved in the `_adjustments` attribute,
-        in that order.
+        border are saved in the `_adj` attribute, in that
+        order.
 
         Raises AssertionError if the board width or board
         height are calculated to be nonpositive somehow.
@@ -284,80 +301,135 @@ class StrandGUI():
         return (canvas_width, canvas_height)
 
 
+    def _spec_infos(self) -> InfoSpecs:
+        """
+        calculate the specs for the info sprites
+
+        Returns (InfoSpecs):
+            - The sizes and positions for the info sprites
+              as Specs objects in an InfoSpecs object.
+        """
+        canvas_w, canvas_h = self._canvas.get_size()
+        scale_w, scale_h = App.INFO_ELEMENT_BUFFER
+        # shared header and footer values
+        max_w = max(1/2 * (canvas_w - 2 * self._adj.xb), 0)
+        left_x = round(self._adj.xb + 1/2 * max_w)
+        right_x = round(self._adj.xb + 3/2 * max_w)
+        nonhint_w = round(scale_w * max_w)
+        # header specific
+        header_h = self._adj.a * App.HEADER
+        header_y = round(self._adj.yb + 1/2 * header_h)
+        header_h = round(scale_h * header_h)
+        # footer specific
+        footer_h = self._adj.a * App.FOOTER
+        footer_y = round(
+            canvas_h - self._adj.yb - 1/2 * footer_h
+            )
+        footer_h = round(scale_h * footer_h)
+        hint_w = min(
+            nonhint_w,
+            round(scale_w * App.HINT_AR * footer_h)
+            )
+
+        return InfoSpecs(
+            Specs(left_x, header_y, nonhint_w, header_h),
+            Specs(right_x, header_y, nonhint_w, header_h),
+            Specs(left_x, footer_y, hint_w, footer_h),
+            Specs(right_x, footer_y, nonhint_w, footer_h)
+            )
+
+
+    def _gridspec_letters(self) -> GridSpecs:
+        """
+        calculate the grid specs for the letter sprites
+
+        Returns (GridSpecs):
+            - A GridSpecs object containing the values
+              needed to calculate the size and position
+              of each letter based on its position on
+              the grid
+        """
+        a, xb, yb = self._adj
+        grid_x, grid_y = (a * n for n in App.GRID_SIZE)
+        scale_x, scale_y = App.GRID_ELEMENT_BUFFER
+        offset =  (xb, round(yb + a * App.HEADER))
+        spacing = (round(grid_x), round(grid_y))
+        size = (
+            round(scale_x * grid_x),
+            round(scale_y * grid_y)
+            )
+        return GridSpecs(offset, spacing, size)
+
+
+    # SPRITE MANAGEMENT METHODS
+
     def _generate_sprites(self) -> None:
         """ generate all sprites """
-
-        # generate letters
-        a, xb, yb = self._adj
+        # generate letter sprites
         self._letters_lookup = {}
-        self._letters = pygame.sprite.Group()
-        grid_x, grid_y = (a * n for n in App.GRID_SIZE)
-        for i in range(self._game.board().num_rows()):
-            for j in range(self._game.board().num_cols()):
-                pos = Pos(i, j)
-                letter = Letter(
-                    pos,
-                    self._game.board().get_letter(pos),
-                    Specs(
-                        round((j + 1/2) * grid_x + xb),
-                        round(
-                            (i + 1/2) * grid_y
-                            + yb + a * App.HEADER
-                            ),
-                        round(App.ELEMENT_BUFFER * grid_x),
-                        round(App.ELEMENT_BUFFER * grid_y)
-                        )
-                    )
-                letter.render()
-                self._letters.add(letter)
-                self._letters_lookup[(i, j)] = letter
+        self._letters = []
+        letter_gridspecs = self._gridspec_letters()
+        for pos in ndindex((
+            self._game.board().num_rows(),
+            self._game.board().num_cols()
+            )):
+            ch = self._game.board().get_letter(Pos(*pos))
+            letter = LetterSprite(
+                pos, ch, letter_gridspecs
+                )
+            letter.render()
+            self._letters.append(letter)
+            self._letters_lookup[pos] = letter
 
-        # generate then render all info sprites
-        specs = self._spec_info()
-        self._theme = Text(self._game.theme(), specs.theme)
-        self._message = Text(
+        # generate info sprites
+        specs = self._spec_infos()
+        ## generate theme
+        self._theme = TextSprite(
+            self._game.theme(), specs.theme
+            )
+        self._theme.render()
+        ## generate message
+        self._message = TextSprite(
             App.MESSAGE_START,
             specs.message
             )
+        self._message.render()
+        ## generate hint
         if self._game.hint_threshold() <= 0:
-            self._hint = Text(App.HINT_TEXT, specs.hint)
-            self._hint.border = True
+            self._hint = TextSprite(
+                App.HINT_TEXT, specs.hint
+                )
+            self._hint.container.border = True
         else:
-            self._hint = Meter(
+            self._hint = MeterSprite(
                 App.HINT_METER,
                 specs.hint,
                 self._game.hint_threshold(),
                 True
                 )
+            self._hint.container.border = True
+        self._hint.render()
+        ## generate found
         if len(self._game.answers()) == 0:
-            self._found = Text(App.FOUND_TEXT, specs.found)
+            self._found = TextSprite(
+                App.FOUND_TEXT, specs.found
+                )
         else:
-            self._found = Meter(
+            self._found = MeterSprite(
                 App.FOUND_METER,
                 specs.found,
                 len(self._game.answers())
                 )
-        self._theme.render()
-        self._message.render()
-        self._hint.render()
         self._found.render()
 
 
     def _update_sprites(self) -> None:
         """ update all sprites after a resizing """
-        # update letters
-        a, xb, yb = self._adj
-        grid_x, grid_y = (a * n for n in App.GRID_SIZE)
-        self._letters.update(
-            (xb, round(yb + a * App.HEADER)),
-            (round(grid_x), round(grid_y)),
-            (
-                round(App.ELEMENT_BUFFER * grid_x),
-                round(App.ELEMENT_BUFFER * grid_y)
-                )
-            )
-        # update info sprites
-        specs = self._spec_info()
+        letter_gridspecs = self._gridspec_letters()
+        for letter in self._letters:
+            letter.resize(letter_gridspecs)
+            letter.render()
+        specs = self._spec_infos()
         self._hint.resize(specs.hint)
         self._hint.render()
         self._found.resize(specs.found)
@@ -368,47 +440,7 @@ class StrandGUI():
         self._message.render()
 
 
-    def _spec_info(self) -> InfoSpecs:
-        """
-        calculate the sizes and positions for the info
-        sprites
-
-        Returns (InfoSpecs):
-        - The sizes and positions for the info sprites
-        """
-        a, xb, yb = self._adj
-        canvas_w, canvas_h = self._canvas.get_size()
-
-        # shared values
-        max_w = max(1/2 * (canvas_w - 2 * xb), 0)
-        left_x = round(xb + 1/2 * max_w)
-        right_x = round(xb + 3/2 * max_w)
-        # header-specific
-        header_h = a * App.HEADER
-        header_y = round(yb + 1/2 * header_h)
-        header_w = round(
-            App.ELEMENT_BUFFER
-            * min(App.INFO_AR * header_h, max_w)
-            )
-        header_h = round(App.ELEMENT_BUFFER * header_h)
-        # footer-specific
-        footer_h = a * App.FOOTER
-        footer_y = round(canvas_h - yb - 1/2 * footer_h)
-        footer_w = round(
-            App.ELEMENT_BUFFER
-            * min(App.INFO_AR * footer_h, max_w)
-            )
-        footer_h = round(App.ELEMENT_BUFFER * footer_h)
-
-        return InfoSpecs(
-            Specs(left_x, header_y, header_w, header_h),
-            Specs(right_x, header_y, header_w, header_h),
-            Specs(left_x, footer_y, footer_w, footer_h),
-            Specs(right_x, footer_y, footer_w, footer_h)
-            )
-
-
-    # USER INPUT METHODS
+    # USER INTERACTION METHODS
 
     def play(self) -> None:
         """ Play the game! """
@@ -477,25 +509,26 @@ class StrandGUI():
         if key == pygame.K_q:
             self._quit()
         elif key == pygame.K_RETURN:
-            self._submitter()
+            self._submit()
         elif key == pygame.K_ESCAPE:
-            self._deselecter()
+            self._deselect()
         elif key == pygame.K_h:
-            self._hinter()
+            self._use_hint()
         self._render()
 
 
     def _click(self, x: int, y: int) -> None:
         """ process a mouse click at the position given """
         if self._hint.rect.collidepoint(x, y):
-            self._hinter()
+            self._use_hint()
         elif self._found.rect.collidepoint(x, y):
-            self._founder()
+            self._show_progress()
         else:
             for letter in self._letters:
-                if letter.rect.collidepoint(x, y):
-                    self._selecter(letter.position, False)
-                    break
+                if not letter.rect.collidepoint(x, y):
+                    continue
+                self._select(Pos(*letter.position), False)
+                break
         self._render()
 
 
@@ -503,48 +536,55 @@ class StrandGUI():
         """ process mouse dragging at the position given """
         for letter in self._letters:
             if letter.rect.collidepoint(x, y):
-                self._selecter(letter.position, True)
+                self._select(Pos(*letter.position), True)
                 break
         self._render()
 
 
     def _selected(self) -> None:
         """ process the end of mouse dragging """
-        self._submitter()
-        self._render()
+        if self._selection is not None:
+            if len(self._selection.positions()) == 1:
+                self._deselect()
+            else:
+                self._submit()
+            self._render()
 
 
-    # GAME PLAY METHODS
+    # GAME FUNCTIONALITY METHODS
 
-    def _submitter(self) -> None:
+    def _submit(self) -> None:
         """ submit a strand """
         if self._game.game_over():
             return
-        if self._select is None:
-            self._message.text = App.MESSAGE_EMPTY_SUBMIT
-            self._message.text_color = App.TEXT_COLOR
+        if self._selection is None:
+            self._message.text.text = App.MESSAGE_EMPTY
+            self._message.text.color = App.TEXT_COLOR
             self._message.render()
             return
-        info = self._game.submit_strand(self._select)
+        info = self._game.submit_strand(self._selection)
+        self._deselect()
         if isinstance(info, str):
-            self._message.text = info
-            self._message.text_color = App.TEXT_COLOR
+            self._message.text.text = info
+            self._message.text.color = App.TEXT_COLOR
             self._message.render()
         else:
             word, is_theme = info
             if is_theme:
                 if self._game.game_over():
-                    self._message.text = App.MESSAGE_WIN
-                    self._message.text_color = (
+                    self._message.text.text = (
+                        App.MESSAGE_WIN
+                        )
+                    self._message.text.color = (
                         App.TEXT_COLOR
                         )
                 else:
-                    self._message.text = word
-                    self._message.text_color = (
+                    self._message.text.text = word
+                    self._message.text.color = (
                         App.FOUND_COLOR
                         )
                 self._message.render()
-                if isinstance(self._found, Meter):
+                if isinstance(self._found, MeterSprite):
                     self._found.remeter(
                         len(self._game.found_strands())
                         )
@@ -553,29 +593,33 @@ class StrandGUI():
                 for pos in strand.positions():
                     position = (pos.r, pos.c)
                     letter = self._letters_lookup[position]
-                    letter.highlight2 = App.FOUND_COLOR
-                    letter.border = False
+                    letter.container.fill = True
+                    letter.container.fill_color = (
+                        App.FOUND_COLOR
+                        )
+                    for container in letter.containers:
+                        container.border = False
                     letter.render()
             else:
-                self._message.text = word
-                self._message.text_color = App.UNTHEME_COLOR
+                self._message.text.text = word
+                self._message.text.color = App.OTHER_COLOR
                 self._message.render()
-                if isinstance(self._hint, Meter):
+                if isinstance(self._hint, MeterSprite):
                     self._hint.remeter(
                         self._game.hint_meter()
                         )
                     self._hint.render()
-        self._deselecter()
 
 
-    def _hinter(self) -> None:
+    def _use_hint(self) -> None:
         """ use a hint """
         if self._game.game_over():
             return
         info = self._game.use_hint()
         if isinstance(info, str):
-            self._message.text = info
-            self._message.text_color = App.TEXT_COLOR
+            self._message.text_override()
+            self._message.text.text = info
+            self._message.text.color = App.TEXT_COLOR
             self._message.render()
         else:
             i, b = info
@@ -585,28 +629,34 @@ class StrandGUI():
             for pos in positions:
                 position = (pos.r, pos.c)
                 letter = self._letters_lookup[position]
-                letter.highlight2 = App.HINT_COLOR
+                letter.containers[0].fill = True
+                letter.containers[0].fill_color = (
+                    App.HINT_COLOR
+                    )
                 if b and pos in first_last:
-                    letter.border = True
+                    for container in letter.containers:
+                        container.border = True
                 letter.render()
-            if isinstance(self._hint, Meter):
+            if isinstance(self._hint, MeterSprite):
                 self._hint.remeter(self._game.hint_meter())
                 self._hint.render()
 
 
-    def _deselecter(self) -> None:
+    def _deselect(self) -> None:
         """ deselect a strand """
-        if self._select is None:
+        if self._selection is None:
             return
-        for pos_ in self._select.positions():
+        for pos_ in self._selection.positions():
             position = (pos_.r, pos_.c)
             letter = self._letters_lookup[position]
-            letter.highlight1 = None
+            letter.container_override()
             letter.render()
-        self._select = None
+        self._selection = None
+        self._message.text_override()
+        self._message.render()
 
 
-    def _selecter(
+    def _select(
         self,
         pos: PosBase,
         dragging: bool
@@ -620,10 +670,10 @@ class StrandGUI():
             return
 
         # update selection
-        if self._select is None:
+        if self._selection is None:
             new = Strand(pos, [])
         else:
-            *positions, last = self._select.positions()
+            *positions, last = self._selection.positions()
             if pos == last:
                 # allow continuous selection if
                 # click-dragging
@@ -636,41 +686,51 @@ class StrandGUI():
                 # submit if clicking the last letter
                 # selected
                 else:
-                    self._submitter()
+                    self._submit()
                     return
             # backtrack the selection to the given pos
             elif pos in positions:
                 i = positions.index(pos)
                 new = Strand(
-                    self._select.start,
-                    self._select.steps[:i]
+                    self._selection.start,
+                    self._selection.steps[:i]
                     )
             # extend the selection to the given pos
             elif pos.is_adjacent_to(last):
                 new = Strand(
-                    self._select.start,
-                    self._select.steps + [last.step_to(pos)]
+                    self._selection.start,
+                    self._selection.steps
+                        + [last.step_to(pos)]
                     )
             else:
                 new = None
 
         # update letter sprites
-        self._deselecter() # clear the previous render first
+        self._deselect() # clear the previous render first
         if new is not None:
             for pos_ in new.positions():
                 position = (pos_.r, pos_.c)
                 letter = self._letters_lookup[position]
-                letter.highlight1 = App.SELECT_COLOR
+                letter.container = deepcopy(
+                    letter.container
+                    )
+                letter.container.fill = True
+                letter.container.fill_color = (
+                    App.SELECT_COLOR
+                    )
                 letter.render()
-            self._message.text = (
+            self._message.text = deepcopy(
+                self._message.text
+                )
+            self._message.text.text = (
                 self._game.board().evaluate_strand(new)
                 )
-            self._message.text_color = App.SELECT_COLOR
+            self._message.text.color = App.SELECT_COLOR
             self._message.render()
-        self._select = new
+        self._selection = new
 
 
-    def _founder(self) -> None:
+    def _show_progress(self) -> None:
         """ show the number of words left in a message """
         if self._game.game_over():
             return
@@ -678,10 +738,11 @@ class StrandGUI():
             len(self._game.answers())
             - len(self._game.found_strands())
             )
-        self._message.text = (
+        self._message.text_override()
+        self._message.text.text = (
             App.MESSAGE_FOUND.format(left = left)
             )
-        self._message.text_color = App.TEXT_COLOR
+        self._message.text.color = App.TEXT_COLOR
         self._message.render()
 
 
@@ -693,9 +754,10 @@ class StrandGUI():
         self._draw_borders()
         for strand in self._game.found_strands():
             self._connect(strand, App.FOUND_COLOR)
-        if self._select is not None:
-            self._connect(self._select, App.SELECT_COLOR)
-        self._letters.draw(self._canvas)
+        if self._selection is not None:
+            self._connect(self._selection, App.SELECT_COLOR)
+        for letter in self._letters:
+            letter.draw(self._canvas)
         self._theme.draw(self._canvas)
         self._message.draw(self._canvas)
         self._hint.draw(self._canvas)

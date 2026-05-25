@@ -23,8 +23,11 @@ def play(
     root = Path(__file__).resolve().parents[1]
     if game is None:
         file = choice(glob(str(root / "boards/*.txt")))
+        game = Path(file).stem.lower()
     else:
         file = str(root / f"boards/{game}.txt")
+        game = game.lower()
+    print(f"Playing {game}...")
     StrandGUI(file, mode, hint_threshold).play()
 
 if __name__ == "__main__":
